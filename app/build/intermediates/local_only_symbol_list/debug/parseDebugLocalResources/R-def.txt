@@ -1,0 +1,17 @@
+R_DEF: Internal format may change without notice
+local
+drawable ic_launcher_background
+drawable ic_launcher_foreground
+drawable ic_moon
+drawable ic_nav_alarm
+drawable ic_nav_habit
+drawable ic_nav_home
+drawable ic_nav_jadwal
+drawable ic_nav_teman
+font plusjakartasans_bold
+font plusjakartasans_medium
+font plusjakartasans_regular
+font plusjakartasans_semibold
+mipmap ic_launcher
+mipmap ic_launcher_round
+style Theme.WakeUp

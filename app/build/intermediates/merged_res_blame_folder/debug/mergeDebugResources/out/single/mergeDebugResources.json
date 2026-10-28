@@ -1,0 +1,66 @@
+[
+    {
+        "merged": "com.wakeup.app-debug-54:/drawable_ic_nav_jadwal.xml.flat",
+        "source": "com.wakeup.app-main-56:/drawable/ic_nav_jadwal.xml"
+    },
+    {
+        "merged": "com.wakeup.app-debug-54:/drawable_ic_nav_home.xml.flat",
+        "source": "com.wakeup.app-main-56:/drawable/ic_nav_home.xml"
+    },
+    {
+        "merged": "com.wakeup.app-debug-54:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.wakeup.app-main-56:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "com.wakeup.app-debug-54:/drawable_ic_nav_habit.xml.flat",
+        "source": "com.wakeup.app-main-56:/drawable/ic_nav_habit.xml"
+    },
+    {
+        "merged": "com.wakeup.app-debug-54:/drawable_ic_nav_teman.xml.flat",
+        "source": "com.wakeup.app-main-56:/drawable/ic_nav_teman.xml"
+    },
+    {
+        "merged": "com.wakeup.app-debug-54:/font_plusjakartasans_medium.ttf.flat",
+        "source": "com.wakeup.app-main-56:/font/plusjakartasans_medium.ttf"
+    },
+    {
+        "merged": "com.wakeup.app-debug-54:/drawable_ic_launcher_background.xml.flat",
+        "source": "com.wakeup.app-main-56:/drawable/ic_launcher_background.xml"
+    },
+    {
+        "merged": "com.wakeup.app-debug-54:/font_plusjakartasans_semibold.ttf.flat",
+        "source": "com.wakeup.app-main-56:/font/plusjakartasans_semibold.ttf"
+    },
+    {
+        "merged": "C:\\Users\\Andika\\.gradle\\daemon\\8.7\\com.wakeup.app-debug-54:\\mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "C:\\Users\\Andika\\.gradle\\daemon\\8.7\\com.wakeup.app-main-56:\\mipmap-anydpi-v26\\ic_launcher_round.xml"
+    },
+    {
+        "merged": "com.wakeup.app-debug-54:/font_plusjakartasans_bold.ttf.flat",
+        "source": "com.wakeup.app-main-56:/font/plusjakartasans_bold.ttf"
+    },
+    {
+        "merged": "com.wakeup.app-debug-54:/drawable_ic_moon.xml.flat",
+        "source": "com.wakeup.app-main-56:/drawable/ic_moon.xml"
+    },
+    {
+        "merged": "com.wakeup.app-debug-54:/font_plusjakartasans_regular.ttf.flat",
+        "source": "com.wakeup.app-main-56:/font/plusjakartasans_regular.ttf"
+    },
+    {
+        "merged": "C:\\Users\\Andika\\.gradle\\daemon\\8.7\\com.wakeup.app-debug-54:\\mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "C:\\Users\\Andika\\.gradle\\daemon\\8.7\\com.wakeup.app-main-56:\\mipmap-anydpi-v26\\ic_launcher.xml"
+    },
+    {
+        "merged": "com.wakeup.app-debug-54:/drawable_ic_nav_alarm.xml.flat",
+        "source": "com.wakeup.app-main-56:/drawable/ic_nav_alarm.xml"
+    },
+    {
+        "merged": "C:\\Users\\Andika\\.gradle\\daemon\\8.7\\com.wakeup.app-debug-54:\\drawable_ic_launcher_foreground.xml.flat",
+        "source": "C:\\Users\\Andika\\.gradle\\daemon\\8.7\\com.wakeup.app-main-56:\\drawable\\ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "C:\\Users\\Andika\\.gradle\\daemon\\8.7\\com.wakeup.app-debug-54:\\drawable_ic_launcher_background.xml.flat",
+        "source": "C:\\Users\\Andika\\.gradle\\daemon\\8.7\\com.wakeup.app-main-56:\\drawable\\ic_launcher_background.xml"
+    }
+]
