@@ -1,0 +1,23 @@
+# Android / Gradle / Android Studio
+*.iml
+.gradle/
+.idea/
+.kotlin/
+local.properties
+build/
+**/build/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.hprof
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Rahasia (jangan pernah di-commit)
+*.keystore
+*.jks
+.env

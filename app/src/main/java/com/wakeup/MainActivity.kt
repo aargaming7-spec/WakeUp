@@ -142,10 +142,11 @@ fun HomeScreen(onGo: (Int) -> Unit) {
     var name by remember { mutableStateOf<String?>(null) }
     var habits by remember { mutableStateOf<List<Habit>>(emptyList()) }
     var agenda by remember { mutableStateOf<List<AgendaItem>>(emptyList()) }
+    var stats by remember { mutableStateOf<WakeStats?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     val exec = rememberRunner { error = it }
     LaunchedEffect(Unit) {
-        if (Supa.loggedIn) exec { name = Repo.myProfile()?.username; habits = Repo.habits(); agenda = Repo.agenda() }
+        if (Supa.loggedIn) exec { name = Repo.myProfile()?.username; habits = Repo.habits(); agenda = Repo.agenda(); stats = Repo.wakeStats() }
     }
 
     val nowMin = LocalTime.now().let { it.hour * 60 + it.minute }
@@ -172,8 +173,9 @@ fun HomeScreen(onGo: (Int) -> Unit) {
             Text(next?.let { LEVELS[it.level] + ", tantangan acak, tanpa snooze" } ?: "Belum ada alarm aktif. Buat di tab Alarm.", color = Muted)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Card2(Modifier.weight(1f)) { Text("Streak bangun", color = Muted); Text("${History.streak(ctx)} hari", style = MaterialTheme.typography.titleLarge) }
-            Card2(Modifier.weight(1f)) { Text("Total bangun", color = Muted); Text("${History.total(ctx)} kali", style = MaterialTheme.typography.titleLarge) }
+            Card2(Modifier.weight(1f)) { Text("Streak bangun", color = Muted); Text("${maxOf(History.streak(ctx), stats?.streak ?: 0)} hari", style = MaterialTheme.typography.titleLarge)
+                stats?.let { Text("Terbaik ${it.best} hari", style = MaterialTheme.typography.labelSmall, color = Muted) } }
+            Card2(Modifier.weight(1f)) { Text("Total bangun", color = Muted); Text("${maxOf(History.total(ctx), stats?.total ?: 0)} kali", style = MaterialTheme.typography.titleLarge) }
         }
         if (!Supa.loggedIn) {
             Card2 {
@@ -257,7 +259,9 @@ fun AlarmScreen() {
             if (remote.isNotEmpty()) { alarms = remote; AlarmStore.save(ctx, remote) }
         }
     }
-    val week = History.week(ctx)
+    var remoteWeek by remember { mutableStateOf<List<Boolean>?>(null) }
+    LaunchedEffect(Unit) { if (Supa.loggedIn) exec { remoteWeek = Repo.wakeStats().week } }
+    val week = History.week(ctx).mapIndexed { i, b -> b || remoteWeek?.getOrNull(i) == true }
 
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         Text("Alarm", style = MaterialTheme.typography.headlineMedium)

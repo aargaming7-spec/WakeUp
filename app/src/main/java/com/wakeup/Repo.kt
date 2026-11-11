@@ -21,6 +21,8 @@ data class Member(val profile: Profile, val role: String)
 data class SharedSchedule(val id: String, val groupId: String, val groupName: String, val title: String,
                           val description: String?, val startsAt: Instant, val endsAt: Instant?, val createdBy: String,
                           val myStatus: String, val going: Int, val invited: Int, val declined: Int)
+/** Statistik bangun, dihitung dari tabel alarm_logs (bukan penyimpanan lokal). */
+data class WakeStats(val streak: Int, val best: Int, val total: Int, val week: List<Boolean>)
 /** Satu baris di halaman Jadwal: reminder pribadi atau jadwal grup. */
 data class AgendaItem(val key: String, val kind: String, val refId: String, val title: String, val sub: String,
                       val start: Instant, val end: Instant, val status: String, val done: Boolean, val conflict: Boolean)
@@ -42,23 +44,47 @@ object Repo {
     }
 
     // ---------- alarm (lokal tetap utama; ini cadangan di cloud) ----------
+    /** Upsert berdasarkan (user_id, local_id) lalu hapus yang sudah tidak ada. Tidak pernah mengosongkan cloud lebih dulu. */
     suspend fun pushAlarms(list: List<Alarm>) {
-        Supa.rest("DELETE", "alarms?user_id=eq.${uid()}")
-        if (list.isEmpty()) return
+        val u = uid()
+        if (list.isEmpty()) { Supa.rest("DELETE", "alarms?user_id=eq.$u"); return }
         val arr = JSONArray()
         list.forEach { a ->
-            arr.put(JSONObject().put("user_id", uid()).put("hour", a.hour).put("minute", a.minute)
+            arr.put(JSONObject().put("user_id", u).put("local_id", a.id).put("hour", a.hour).put("minute", a.minute)
                 .put("level", a.level).put("enabled", a.enabled).put("days", JSONArray(a.days)))
         }
-        Supa.rest("POST", "alarms", arr.toString())
+        Supa.rest("POST", "alarms?on_conflict=user_id,local_id", arr.toString(), "resolution=merge-duplicates")
+        val keep = list.joinToString(",") { it.id.toString() }
+        Supa.rest("DELETE", "alarms?user_id=eq.$u&local_id=not.in.($keep)")
+        Supa.rest("DELETE", "alarms?user_id=eq.$u&local_id=is.null")   // baris lama sebelum ada kolom local_id
     }
 
     suspend fun pullAlarms(): List<Alarm> =
         Supa.get("alarms?user_id=eq.${uid()}&order=created_at").objs().mapIndexed { i, o ->
             val d = o.getJSONArray("days")
-            Alarm((System.currentTimeMillis() % 900_000).toInt() + i, o.getInt("hour"), o.getInt("minute"),
+            val lid = if (o.isNull("local_id")) (System.currentTimeMillis() % 900_000).toInt() + i else o.getInt("local_id")
+            Alarm(lid, o.getInt("hour"), o.getInt("minute"),
                 o.getInt("level"), o.getBoolean("enabled"), (0 until d.length()).map { d.getInt(it) })
         }
+
+    /** Streak, streak terbaik, total hari bangun, dan centang minggu ini, semuanya dari alarm_logs. */
+    suspend fun wakeStats(): WakeStats {
+        val days = Supa.get("alarm_logs?user_id=eq.${uid()}&select=completed_at&order=completed_at.desc&limit=1000")
+            .objs().map { ts(it.getString("completed_at")).local().toLocalDate() }.toSet()
+        val today = LocalDate.now()
+        var d = today
+        if (d !in days) d = d.minusDays(1)
+        var streak = 0
+        while (d in days) { streak++; d = d.minusDays(1) }
+        var best = 0; var run = 0; var prev: LocalDate? = null
+        for (x in days.sorted()) {
+            run = if (prev != null && prev.plusDays(1) == x) run + 1 else 1
+            if (run > best) best = run
+            prev = x
+        }
+        val mon = today.minusDays((today.dayOfWeek.value - 1).toLong())
+        return WakeStats(streak, best, days.size, (0..6).map { mon.plusDays(it.toLong()) in days })
+    }
 
     fun logAlarmAsync(challengeId: Int) {
         if (!Supa.loggedIn) return
@@ -73,8 +99,8 @@ object Repo {
     suspend fun habits(): List<Habit> {
         val u = uid()
         val hs = Supa.get("habits?user_id=eq.$u&archived=eq.false&order=created_at").objs()
-        val since = LocalDate.now().minusDays(60)
-        val logs = Supa.get("habit_logs?user_id=eq.$u&log_date=gte.$since&select=habit_id,log_date,count").objs()
+        val since = LocalDate.now().minusDays(180)   // jendela streak habit
+        val logs = Supa.get("habit_logs?user_id=eq.$u&log_date=gte.$since&select=habit_id,log_date,count&order=log_date.desc").objs()
             .groupBy { it.getString("habit_id") }
         val today = LocalDate.now()
         return hs.map { o ->
@@ -140,6 +166,9 @@ object Repo {
         Supa.get("profiles?select=id,username,full_name&username=ilike.*${enc(q)}*&id=neq.${uid()}&limit=20").objs().map { it.profile() }
 
     suspend fun sendRequest(toId: String) {
+        val u = uid()
+        // pasangan yang pernah ditolak masih menempati unique index; hapus dulu supaya bisa dikirim ulang
+        Supa.rest("DELETE", "friendships?status=eq.declined&or=(and(requester_id.eq.$u,addressee_id.eq.$toId),and(requester_id.eq.$toId,addressee_id.eq.$u))")
         Supa.rest("POST", "friendships", JSONObject().put("requester_id", uid()).put("addressee_id", toId).toString())
     }
     suspend fun answerRequest(id: String, accept: Boolean) {
