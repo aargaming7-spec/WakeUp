@@ -12,6 +12,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -22,6 +23,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,12 +32,10 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 
-val Muted = Color(0xFF6B7280)
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
-        setContent { WakeTheme { Surface(Modifier.fillMaxSize()) { Root() } } }
+        setContent { WakeTheme { Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { Root() } } }
     }
 }
 
@@ -55,12 +56,19 @@ fun Shell(onOpenAuth: () -> Unit, onLogout: () -> Unit) {
     }
     val tabs = listOf("Beranda" to R.drawable.ic_nav_home, "Alarm" to R.drawable.ic_nav_alarm,
         "Habit" to R.drawable.ic_nav_habit, "Jadwal" to R.drawable.ic_nav_jadwal, "Teman" to R.drawable.ic_nav_teman)
-    Scaffold(bottomBar = {
-        NavigationBar(containerColor = Color.White) {
-            tabs.forEachIndexed { i, (name, icon) ->
-                NavigationBarItem(selected = tab == i, onClick = { tab = i },
-                    icon = { Icon(painterResource(icon), contentDescription = name) },
-                    label = { Text(name, fontSize = 11.sp) })
+    val w = MaterialTheme.wake
+    Scaffold(containerColor = MaterialTheme.colorScheme.background, bottomBar = {
+        Column {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            NavigationBar(containerColor = MaterialTheme.colorScheme.background, tonalElevation = 0.dp) {
+                tabs.forEachIndexed { i, (name, icon) ->
+                    NavigationBarItem(selected = tab == i, onClick = { tab = i },
+                        icon = { Icon(painterResource(icon), contentDescription = name) },
+                        label = { Text(name, fontSize = 11.sp) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = Ink, selectedTextColor = Ink, indicatorColor = w.dawn,
+                            unselectedIconColor = Muted, unselectedTextColor = Muted))
+                }
             }
         }
     }) { pad ->
@@ -90,48 +98,50 @@ fun AuthScreen(onDone: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     var msg by remember { mutableStateOf<String?>(null) }
     val exec = rememberRunner { msg = it }
+    val w = MaterialTheme.wake
 
-    Column(Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.Center) {
-        Box(Modifier.size(64.dp).clip(RoundedCornerShape(18.dp)).background(Ink)) {
-            Image(painterResource(R.drawable.ic_launcher_foreground), null, Modifier.fillMaxSize())
-        }
-        Spacer(Modifier.height(16.dp))
-        Text("WakeUp", style = MaterialTheme.typography.headlineMedium)
-        Text("Bangun dengan tujuan, setiap hari.", color = Muted)
-        Spacer(Modifier.height(20.dp))
-        if (!Config.configured) {
-            Text("Isi SUPABASE_URL dan SUPABASE_ANON_KEY di Config.kt dulu.", color = MaterialTheme.colorScheme.error)
-            Spacer(Modifier.height(8.dp))
-        }
-        if (register) {
-            OutlinedTextField(fullName, { fullName = it }, label = { Text("Nama lengkap") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(username, { username = it.trim().lowercase() }, label = { Text("Username") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        }
-        OutlinedTextField(email, { email = it.trim() }, label = { Text("Email") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(pass, { pass = it }, label = { Text("Password (min. 6 karakter)") }, singleLine = true,
-            visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(8.dp))
-        ErrorText(msg)
-        Spacer(Modifier.height(8.dp))
-        Button(onClick = {
-            busy = true; msg = null
-            exec {
-                try {
-                    if (register) {
-                        if (username.length < 3) throw ApiException("Username minimal 3 karakter")
-                        val ok = Supa.signUp(email, pass, username, fullName)
-                        if (ok) onDone() else { msg = "Akun dibuat. Cek email untuk konfirmasi, lalu masuk."; register = false }
-                    } else { Supa.signIn(email, pass); onDone() }
-                } finally { busy = false }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        // Hero malam dengan matahari terbit di sudut
+        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(bottomStart = 36.dp, bottomEnd = 36.dp)).background(w.night)) {
+            SunMark(Modifier.matchParentSize(), cx = 1f, cy = 1f, scale = .55f)
+            Column(Modifier.padding(horizontal = 24.dp).padding(top = 64.dp, bottom = 36.dp)) {
+                Image(painterResource(R.drawable.ic_moon), null, Modifier.size(52.dp))
+                Spacer(Modifier.height(14.dp))
+                Text("WakeUp", style = MaterialTheme.typography.displaySmall, color = w.onNight)
+                Text("Bangun dengan tujuan, setiap hari.", color = w.onNightSoft)
             }
-        }, enabled = !busy && email.isNotEmpty() && pass.length >= 6, modifier = Modifier.fillMaxWidth()) {
-            Text(if (busy) "Memproses..." else if (register) "Daftar" else "Masuk")
         }
-        TextButton({ register = !register; msg = null }, Modifier.align(Alignment.CenterHorizontally)) {
-            Text(if (register) "Sudah punya akun? Masuk" else "Belum punya akun? Daftar")
+        Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(if (register) "Buat akunmu" else "Selamat datang kembali", style = MaterialTheme.typography.headlineSmall, color = Ink)
+            if (!Config.configured) {
+                Text("Isi SUPABASE_URL dan SUPABASE_ANON_KEY di Config.kt dulu.", color = MaterialTheme.colorScheme.error)
+            }
+            if (register) {
+                OutlinedTextField(fullName, { fullName = it }, label = { Text("Nama lengkap") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(username, { username = it.trim().lowercase() }, label = { Text("Username") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            }
+            OutlinedTextField(email, { email = it.trim() }, label = { Text("Email") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(pass, { pass = it }, label = { Text("Password (min. 6 karakter)") }, singleLine = true,
+                visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+            ErrorText(msg)
+            Spacer(Modifier.height(4.dp))
+            SunButton(if (busy) "Memproses..." else if (register) "Daftar" else "Masuk", {
+                busy = true; msg = null
+                exec {
+                    try {
+                        if (register) {
+                            if (username.length < 3) throw ApiException("Username minimal 3 karakter")
+                            val ok = Supa.signUp(email, pass, username, fullName)
+                            if (ok) onDone() else { msg = "Akun dibuat. Cek email untuk konfirmasi, lalu masuk."; register = false }
+                        } else { Supa.signIn(email, pass); onDone() }
+                    } finally { busy = false }
+                }
+            }, enabled = !busy && email.isNotEmpty() && pass.length >= 6)
+            TextButton({ register = !register; msg = null }, Modifier.align(Alignment.CenterHorizontally)) {
+                Text(if (register) "Sudah punya akun? Masuk" else "Belum punya akun? Daftar", color = Ink)
+            }
+            TextButton(onDone, Modifier.align(Alignment.CenterHorizontally)) { Text("Lewati dulu, pakai alarm saja", color = Muted) }
         }
-        TextButton(onDone, Modifier.align(Alignment.CenterHorizontally)) { Text("Lewati dulu (alarm saja)") }
     }
 }
 
@@ -147,64 +157,131 @@ fun HomeScreen(onGo: (Int) -> Unit) {
     LaunchedEffect(Unit) {
         if (Supa.loggedIn) exec { name = Repo.myProfile()?.username; habits = Repo.habits(); agenda = Repo.agenda() }
     }
+    val w = MaterialTheme.wake
 
     val nowMin = LocalTime.now().let { it.hour * 60 + it.minute }
     val next = AlarmStore.load(ctx).filter { it.enabled }
         .minByOrNull { ((it.hour * 60 + it.minute) - nowMin + 1440) % 1440 }
+    val diff = next?.let { ((it.hour * 60 + it.minute) - nowMin + 1440) % 1440 }
     val today = LocalDate.now()
     val todayItems = agenda.filter { it.start.local().toLocalDate() == today && !it.done && it.status != "declined" }
     val upcomingGroup = agenda.filter { it.kind == "group" && it.start.isAfter(Instant.now()) && it.status != "declined" }.take(3)
     val doneHabits = habits.count { it.today >= it.target }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Selamat pagi", color = Muted)
-                Text(name ?: "WakeUp", style = MaterialTheme.typography.headlineMedium)
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        ScreenHeader(name ?: "WakeUp", overline = greeting() + "  ·  " + fmtDate(Instant.now()), trailing = {
+            Box(Modifier.size(44.dp).clip(CircleShape).background(w.dawn).clickable { onGo(5) }
+                .semantics { contentDescription = "Pengaturan" }, contentAlignment = Alignment.Center) {
+                Text((name ?: "W").take(1).uppercase(), style = MaterialTheme.typography.titleMedium, color = w.sunText)
             }
-            TextButton({ onGo(5) }) { Text("Pengaturan") }
-        }
+        })
         ErrorText(error)
+
+        // Hero: alarm berikutnya
+        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(w.night)) {
+            SunMark(Modifier.matchParentSize(), cx = 1f, cy = 1f, scale = .5f)
+            Column(Modifier.padding(24.dp)) {
+                Text("ALARM BERIKUTNYA", style = MaterialTheme.typography.labelSmall, color = w.onNightSoft)
+                Text(next?.let { "%02d:%02d".format(it.hour, it.minute) } ?: "--:--",
+                    style = MaterialTheme.typography.displayLarge, color = w.onNight)
+                Text(when {
+                    next == null -> "Belum ada alarm aktif"
+                    diff == 0 -> "Berbunyi sebentar lagi"
+                    else -> "Berbunyi dalam ${diff!! / 60} j ${diff % 60} m"
+                }, color = w.onNightSoft, style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.height(14.dp))
+                if (next != null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Tag(LEVELS[next.level], w.dawn, w.sunText)
+                    Tag("Tanpa snooze", Color.White.copy(alpha = .12f), w.onNight)
+                } else Box(Modifier.clip(RoundedCornerShape(50)).background(w.sun).clickable { onGo(1) }
+                    .padding(horizontal = 16.dp, vertical = 9.dp)) {
+                    Text("Buat alarm", style = MaterialTheme.typography.labelLarge, color = w.onSun)
+                }
+            }
+        }
+
+        // Statistik: dua angka besar, dipisah garis tipis
         Card2 {
-            Text("Alarm berikutnya", color = Muted, style = MaterialTheme.typography.labelLarge)
-            Text(next?.let { "%02d:%02d".format(it.hour, it.minute) } ?: "--:--", style = MaterialTheme.typography.displayMedium)
-            Text(next?.let { LEVELS[it.level] + ", tantangan acak, tanpa snooze" } ?: "Belum ada alarm aktif. Buat di tab Alarm.", color = Muted)
+            Row(Modifier.height(IntrinsicSize.Min)) {
+                Column(Modifier.weight(1f)) {
+                    Text("${History.streak(ctx)}", style = MaterialTheme.typography.displaySmall, color = Ink)
+                    Text("hari beruntun", color = Muted, style = MaterialTheme.typography.labelLarge)
+                }
+                Box(Modifier.width(1.dp).fillMaxHeight().background(MaterialTheme.colorScheme.outlineVariant))
+                Column(Modifier.weight(1f).padding(start = 20.dp)) {
+                    Text("${History.total(ctx)}", style = MaterialTheme.typography.displaySmall, color = Ink)
+                    Text("total bangun", color = Muted, style = MaterialTheme.typography.labelLarge)
+                }
+            }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Card2(Modifier.weight(1f)) { Text("Streak bangun", color = Muted); Text("${History.streak(ctx)} hari", style = MaterialTheme.typography.titleLarge) }
-            Card2(Modifier.weight(1f)) { Text("Total bangun", color = Muted); Text("${History.total(ctx)} kali", style = MaterialTheme.typography.titleLarge) }
-        }
+
         if (!Supa.loggedIn) {
-            Card2 {
-                Text("Masuk untuk memakai habit tracker, jadwal, teman, dan grup.")
-                TextButton({ onGo(5) }) { Text("Buka pengaturan akun") }
+            Card2(color = w.dawn) {
+                Text("Buka semua fitur", style = MaterialTheme.typography.titleMedium, color = Ink)
+                Text("Habit tracker, jadwal, teman, dan grup butuh akun.", color = Muted)
+                TextButton({ onGo(5) }, contentPadding = PaddingValues(0.dp)) { Text("Buka pengaturan akun", color = w.sunText) }
             }
         } else {
             Card2 {
-                Text("Habit hari ini", style = MaterialTheme.typography.titleSmall)
-                if (habits.isEmpty()) Text("Belum ada habit. Tambahkan di tab Habit.", color = Muted) else {
-                    Text("$doneHabits dari ${habits.size} tercapai", color = Muted)
-                    LinearProgressIndicator(progress = { doneHabits.toFloat() / habits.size }, Modifier.fillMaxWidth().padding(vertical = 8.dp))
-                    habits.forEach { Text("${it.name}: ${it.today}/${it.target} ${it.unit}", style = MaterialTheme.typography.bodySmall) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Ring(if (habits.isEmpty()) 0f else doneHabits.toFloat() / habits.size, 64.dp, 7.dp, w.sun) {
+                        Text("$doneHabits/${habits.size}", style = MaterialTheme.typography.titleSmall, color = Ink)
+                    }
+                    Spacer(Modifier.width(16.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Habit hari ini", style = MaterialTheme.typography.titleMedium, color = Ink)
+                        Text(if (habits.isEmpty()) "Belum ada habit. Tambahkan di tab Habit." else "$doneHabits dari ${habits.size} tercapai",
+                            color = Muted, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                if (habits.isNotEmpty()) Column(Modifier.padding(top = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    habits.take(4).forEach { h ->
+                        Column {
+                            Row {
+                                Text(h.name, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = Ink)
+                                Text("${h.today}/${h.target} ${h.unit}", style = MaterialTheme.typography.labelMedium, color = Muted)
+                            }
+                            Bar(h.today.toFloat() / h.target, if (h.today >= h.target) w.moss else w.sun,
+                                Modifier.padding(top = 5.dp), 5.dp)
+                        }
+                    }
                 }
             }
             Card2 {
-                Text("Jadwal hari ini", style = MaterialTheme.typography.titleSmall)
-                if (todayItems.isEmpty()) Text("Tidak ada jadwal hari ini.", color = Muted)
-                todayItems.forEach { Text("${fmtTime(it.start)}  ${it.title}${if (it.conflict) "  (bentrok)" else ""}") }
+                Text("Jadwal hari ini", style = MaterialTheme.typography.titleMedium, color = Ink)
+                if (todayItems.isEmpty()) Text("Tidak ada jadwal. Hari yang lapang.", color = Muted, modifier = Modifier.padding(top = 4.dp))
+                Column(Modifier.padding(top = 6.dp)) {
+                    todayItems.forEach { TimelineRow(fmtTime(it.start), it.title, if (it.conflict) "Bentrok dengan jadwal lain" else null,
+                        if (it.conflict) w.amber else if (it.kind == "group") w.group else w.sun) }
+                }
             }
-            Card2 {
-                Text("Kegiatan grup mendatang", style = MaterialTheme.typography.titleSmall)
-                if (upcomingGroup.isEmpty()) Text("Belum ada kegiatan grup.", color = Muted)
-                upcomingGroup.forEach { Text("${it.title}, ${it.sub}\n${fmtDateTime(it.start)}", style = MaterialTheme.typography.bodySmall) }
+            if (upcomingGroup.isNotEmpty()) Card2 {
+                Text("Kegiatan grup mendatang", style = MaterialTheme.typography.titleMedium, color = Ink)
+                Column(Modifier.padding(top = 6.dp)) {
+                    upcomingGroup.forEach { TimelineRow(fmtTime(it.start), it.title, "${it.sub} · ${fmtDate(it.start)}", w.group) }
+                }
             }
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+/** Satu baris linimasa: jam, penanda warna, judul. */
+@Composable
+fun TimelineRow(time: String, title: String, sub: String?, accent: Color) {
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(vertical = 6.dp)) {
+        Text(time, Modifier.width(52.dp), style = MaterialTheme.typography.titleSmall.copy(fontFeatureSettings = "tnum"), color = Ink)
+        Box(Modifier.width(3.dp).fillMaxHeight().clip(CircleShape).background(accent))
+        Column(Modifier.padding(start = 12.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium, color = Ink)
+            if (sub != null) Text(sub, style = MaterialTheme.typography.labelMedium, color = Muted)
         }
     }
 }
 
 // ======================= ALARM =======================
-private val DAYS = listOf("Sen" to 2, "Sel" to 3, "Rab" to 4, "Kam" to 5, "Jum" to 6, "Sab" to 7, "Min" to 1)
+val DAYS = listOf("Sen" to 2, "Sel" to 3, "Rab" to 4, "Kam" to 5, "Jum" to 6, "Sab" to 7, "Min" to 1)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -219,21 +296,19 @@ fun AlarmDialog(initial: Alarm?, onSave: (Alarm) -> Unit, onDismiss: () -> Unit)
             onSave(Alarm(initial?.id ?: (System.currentTimeMillis() % 1_000_000).toInt(), ts.hour, ts.minute, level,
                 initial?.enabled ?: true, if (days.size == 7) emptyList() else days.toList()))
         }, enabled = days.isNotEmpty()) { Text("Simpan") } },
-        dismissButton = { TextButton(onDismiss) { Text("Batal") } },
-        title = { Text(if (initial == null) "Tambah alarm" else "Ubah alarm") },
-        text = { Column(Modifier.verticalScroll(rememberScrollState())) {
+        dismissButton = { TextButton(onDismiss) { Text("Batal", color = Muted) } },
+        title = { Text(if (initial == null) "Alarm baru" else "Ubah alarm") },
+        text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             TimePicker(ts)
-            Text("Ulangi")
+            SectionLabel("Ulangi")
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 DAYS.forEach { (n, d) -> FilterChip(d in days, { days = if (d in days) days - d else days + d }, { Text(n) }) } }
-            Spacer(Modifier.height(8.dp))
-            Text("Tingkat kesulitan")
-            Text("Saat alarm bunyi, satu challenge dipilih acak dari tingkat ini.", style = MaterialTheme.typography.labelSmall, color = Muted)
+            SectionLabel("Tingkat kesulitan")
+            Text("Saat alarm bunyi, satu challenge dipilih acak dari tingkat ini.", style = MaterialTheme.typography.labelMedium, color = Muted)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 LEVELS.forEachIndexed { i, n -> FilterChip(level == i, { level = i }, { Text("$n (${poolFor(i).size})") }) } }
-            Spacer(Modifier.height(8.dp))
-            Text("Kemungkinan challenge:", style = MaterialTheme.typography.labelLarge)
-            poolFor(level).forEach { c -> Text("• ${c.title}", style = MaterialTheme.typography.bodySmall) }
+            SectionLabel("Kemungkinan challenge")
+            poolFor(level).forEach { c -> Text("• ${c.title}", style = MaterialTheme.typography.bodyMedium) }
         } })
 }
 
@@ -246,6 +321,7 @@ fun AlarmScreen() {
     var testing by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val exec = rememberRunner { error = "Sinkron cloud gagal: $it" }
+    val w = MaterialTheme.wake
 
     fun update(l: List<Alarm>) {
         alarms = l; AlarmStore.save(ctx, l)
@@ -259,35 +335,50 @@ fun AlarmScreen() {
     }
     val week = History.week(ctx)
 
-    Column(Modifier.fillMaxSize().padding(20.dp)) {
-        Text("Alarm", style = MaterialTheme.typography.headlineMedium)
-        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+        ScreenHeader("Alarm", overline = "${alarms.count { it.enabled }} aktif")
+        // Riwayat minggu ini
+        Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             DAYS.forEachIndexed { i, (n, _) ->
-                Text(n + if (week[i]) " ✓" else "", style = MaterialTheme.typography.labelSmall, color = if (week[i]) Ink else Muted)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(Modifier.size(30.dp).clip(CircleShape)
+                        .background(if (week[i]) w.sun else MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center) {
+                        Text(n.take(1), style = MaterialTheme.typography.labelLarge, color = if (week[i]) w.onSun else Muted)
+                    }
+                    Text(n, Modifier.padding(top = 3.dp), style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.sp), color = Muted)
+                }
             }
         }
         ErrorText(error)
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             alarms.forEach { a ->
-                Card2(Modifier.padding(vertical = 5.dp).clickable { editing = a }) {
+                Card2(Modifier.clickable { editing = a }) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("%02d:%02d".format(a.hour, a.minute), style = MaterialTheme.typography.headlineMedium)
-                            Text("${LEVELS[a.level]}, challenge acak (${poolFor(a.level).size} pilihan)", color = Muted)
-                            Text(if (a.days.isEmpty() || a.days.size == 7) "Setiap hari"
-                                else DAYS.filter { it.second in a.days }.joinToString(" ") { it.first },
-                                style = MaterialTheme.typography.labelMedium, color = Muted)
+                        Text("%02d:%02d".format(a.hour, a.minute), Modifier.weight(1f),
+                            style = MaterialTheme.typography.displaySmall, color = if (a.enabled) Ink else Muted)
+                        Switch(a.enabled, { on -> update(alarms.map { if (it.id == a.id) it.copy(enabled = on) else it }) },
+                            colors = wakeSwitchColors())
+                    }
+                    Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        LevelTag(a.level)
+                        Text(if (a.days.isEmpty() || a.days.size == 7) "Setiap hari"
+                            else DAYS.filter { it.second in a.days }.joinToString(" ") { it.first },
+                            Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = Muted)
+                        TextButton({ AlarmStore.cancel(ctx, a); update(alarms.filter { it.id != a.id }) },
+                            contentPadding = PaddingValues(horizontal = 8.dp)) {
+                            Text("Hapus", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelLarge)
                         }
-                        TextButton({ AlarmStore.cancel(ctx, a); update(alarms.filter { it.id != a.id }) }) { Text("Hapus") }
-                        Switch(a.enabled, { on -> update(alarms.map { if (it.id == a.id) it.copy(enabled = on) else it }) })
                     }
                 }
             }
-            if (alarms.isEmpty()) Text("Belum ada alarm. Tekan Tambah alarm untuk membuat yang pertama.", Modifier.padding(8.dp), color = Muted)
-            else Text("Ketuk alarm untuk mengubahnya.", Modifier.padding(8.dp), style = MaterialTheme.typography.labelSmall, color = Muted)
+            if (alarms.isEmpty()) EmptyState("Belum ada alarm", "Buat alarm pertamamu. Untuk mematikannya, kamu harus bergerak.")
+            else Text("Ketuk alarm untuk mengubahnya.", Modifier.padding(4.dp), style = MaterialTheme.typography.labelMedium, color = Muted)
         }
-        Button({ adding = true }, Modifier.fillMaxWidth()) { Text("Tambah alarm") }
-        TextButton({ testing = true }, Modifier.align(Alignment.CenterHorizontally)) { Text("Coba challenge") }
+        Spacer(Modifier.height(10.dp))
+        SunButton("Tambah alarm", { adding = true })
+        TextButton({ testing = true }, Modifier.align(Alignment.CenterHorizontally)) { Text("Coba challenge", color = Muted) }
     }
 
     if (adding) AlarmDialog(null, onSave = { update(alarms + it); adding = false }, onDismiss = { adding = false })
@@ -300,14 +391,14 @@ fun AlarmScreen() {
             confirmButton = { TextButton({ testing = false }) { Text("Tutup") } },
             title = { Text("Coba challenge") },
             text = { Column(Modifier.verticalScroll(rememberScrollState())) {
-                Text("Pilih challenge. Alarm tidak berbunyi dan tidak masuk riwayat.", style = MaterialTheme.typography.labelSmall, color = Muted)
-                LEVELS.forEachIndexed { lv, name ->
-                    Text(name, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp))
+                Text("Alarm tidak berbunyi dan tidak masuk riwayat.", style = MaterialTheme.typography.labelMedium, color = Muted)
+                LEVELS.forEachIndexed { lv, _ ->
+                    Row(Modifier.padding(top = 12.dp)) { LevelTag(lv) }
                     CHALLENGES.filter { it.level == lv }.forEach { c ->
                         TextButton({
                             testing = false
                             ctx.startActivity(Intent(ctx, ChallengeActivity::class.java).putExtra("cid", c.id).putExtra("test", true))
-                        }) { Text(c.title) }
+                        }, contentPadding = PaddingValues(horizontal = 0.dp)) { Text(c.title, color = Ink) }
                     }
                 }
             } })

@@ -12,6 +12,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -61,10 +63,24 @@ fun Flow(ch: Challenge, onDone: () -> Unit) {
         if (ch.steps > 0) add("steps"); if (ch.shakes > 0) add("shake")
         if (ch.rotateDeg > 0) add("rotate")
         if (ch.obj != null || ch.face != FaceMode.NONE) add("cam") } }
+    val w = MaterialTheme.wake
     Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Selesaikan challenge untuk mematikan alarm", style = MaterialTheme.typography.titleMedium)
-        Text("Langkah ${minOf(stage + 1, stages.size)}/${stages.size}: ${ch.title}")
-        Spacer(Modifier.height(16.dp))
+        Text("ALARM BERBUNYI", style = MaterialTheme.typography.labelSmall, color = w.sunText)
+        Spacer(Modifier.height(4.dp))
+        Text("Selesaikan challenge untuk mematikan alarm", style = MaterialTheme.typography.titleMedium,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            stages.indices.forEach { i ->
+                Box(Modifier.width(if (i == stage) 28.dp else 10.dp).height(6.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(if (i <= stage) w.sun else MaterialTheme.colorScheme.surfaceVariant))
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text("Langkah ${minOf(stage + 1, stages.size)} dari ${stages.size}: ${ch.title}", color = Muted,
+            style = MaterialTheme.typography.labelLarge)
+        Spacer(Modifier.height(24.dp))
         key(stage) {
             when (stages.getOrNull(stage)) {
                 "steps" -> CountStage("Jalan ${ch.steps} langkah", ch.steps, true) { stage++ }
@@ -103,7 +119,7 @@ fun CountStage(label: String, goal: Int, walking: Boolean, onDone: () -> Unit) {
     }
     Text(label, style = MaterialTheme.typography.headlineSmall)
     Spacer(Modifier.height(48.dp))
-    Text("$count/$goal", style = MaterialTheme.typography.displayLarge)
+    Text("$count/$goal", style = MaterialTheme.typography.displayLarge, color = MaterialTheme.wake.sun)
     if (walking) Spacer(Modifier.height(24.dp))
     if (walking) Text("Kalau sensor langkah tidak tersedia di HP-mu, goyangkan HP seperti berjalan.",
         style = MaterialTheme.typography.labelSmall, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
@@ -142,7 +158,7 @@ fun RotateStage(goalDeg: Int, onDone: () -> Unit) {
     Text("Putar HP $goalDeg°, misalnya seperti membuka pintu", style = MaterialTheme.typography.headlineSmall,
         textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     Spacer(Modifier.height(48.dp))
-    Text("${deg.toInt()}°/$goalDeg°", style = MaterialTheme.typography.displayLarge)
+    Text("${deg.toInt()}°/$goalDeg°", style = MaterialTheme.typography.displayLarge, color = MaterialTheme.wake.sun)
     if (noSensor) {
         Spacer(Modifier.height(24.dp))
         Text("Gyroscope tidak terdeteksi di HP ini.", style = MaterialTheme.typography.labelSmall)
