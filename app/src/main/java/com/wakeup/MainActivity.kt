@@ -119,7 +119,9 @@ fun AuthScreen(onDone: () -> Unit) {
             exec {
                 try {
                     if (register) {
-                        if (username.length < 3) throw ApiException("Username minimal 3 karakter")
+                        if (!Regex("^[a-z0-9_.]{3,20}$").matches(username))
+                            throw ApiException("Username 3-20 karakter: huruf kecil, angka, titik, atau garis bawah")
+                        if (!Supa.usernameAvailable(username)) throw ApiException("Username sudah dipakai, coba yang lain")
                         val ok = Supa.signUp(email, pass, username, fullName)
                         if (ok) onDone() else { msg = "Akun dibuat. Cek email untuk konfirmasi, lalu masuk."; register = false }
                     } else { Supa.signIn(email, pass); onDone() }
@@ -146,7 +148,11 @@ fun HomeScreen(onGo: (Int) -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     val exec = rememberRunner { error = it }
     LaunchedEffect(Unit) {
-        if (Supa.loggedIn) exec { name = Repo.myProfile()?.username; habits = Repo.habits(); agenda = Repo.agenda(); stats = Repo.wakeStats() }
+        if (Supa.loggedIn) exec {
+            runCatching { Repo.flushPending() }   // kirim riwayat bangun yang tertunda saat offline
+            name = Repo.myProfile()?.username; habits = Repo.habits(); agenda = Repo.agenda(); stats = Repo.wakeStats()
+            runCatching { NotificationSync.sync(ctx) }   // pasang ulang pengingat dari data cloud
+        }
     }
 
     val nowMin = LocalTime.now().let { it.hour * 60 + it.minute }
