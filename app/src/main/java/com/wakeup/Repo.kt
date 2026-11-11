@@ -9,6 +9,7 @@ import java.net.URLEncoder
 import java.time.Instant
 import java.time.LocalDate
 import java.time.OffsetDateTime
+import java.util.UUID
 
 data class Profile(val id: String, val username: String, val fullName: String?)
 data class Habit(val id: String, val name: String, val icon: String, val target: Int, val unit: String,
@@ -86,13 +87,29 @@ object Repo {
         return WakeStats(streak, best, days.size, (0..6).map { mon.plusDays(it.toLong()) in days })
     }
 
-    fun logAlarmAsync(challengeId: Int) {
+    /**
+     * Catat alarm yang selesai. Entri disimpan dulu di antrian lokal (SyncQueue) lalu dikirim;
+     * kalau offline, otomatis dikirim ulang nanti lewat flushPending(). id dibuat di HP supaya kirim ulang tidak jadi duplikat.
+     */
+    fun logAlarmAsync(challengeId: Int, alarmLocalId: Int = -1) {
         if (!Supa.loggedIn) return
-        CoroutineScope(Dispatchers.IO).launch {
-            runCatching {
-                Supa.rest("POST", "alarm_logs", JSONObject().put("user_id", uid()).put("challenge_id", challengeId).toString())
-            }
-        }
+        SyncQueue.add(JSONObject()
+            .put("id", UUID.randomUUID().toString())
+            .put("user_id", uid())
+            .put("challenge_id", challengeId)
+            .put("alarm_local_id", if (alarmLocalId >= 0) alarmLocalId else JSONObject.NULL)
+            .put("completed_at", Instant.now().toString()))
+        CoroutineScope(Dispatchers.IO).launch { runCatching { flushPending() } }
+    }
+
+    /** Kirim semua entri antrian milik user yang sedang login. Aman dipanggil berulang (ignore-duplicates). */
+    suspend fun flushPending() {
+        if (!Supa.loggedIn) return
+        val mine = SyncQueue.entriesFor(uid())
+        if (mine.isEmpty()) return
+        val arr = JSONArray(); mine.forEach { arr.put(it) }
+        Supa.rest("POST", "alarm_logs?on_conflict=id", arr.toString(), "resolution=ignore-duplicates")
+        SyncQueue.remove(mine.map { it.getString("id") }.toSet())
     }
 
     // ---------- habit ----------

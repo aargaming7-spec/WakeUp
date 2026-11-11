@@ -38,6 +38,7 @@ class ChallengeActivity : ComponentActivity() {
         super.onCreate(b)
         val test = intent.getBooleanExtra("test", false)   // mode coba: tanpa alarm, tidak masuk riwayat
         val cid = intent.getIntExtra("cid", -1)
+        val alarmId = intent.getIntExtra("alarmId", -1)
         val ch = if (cid > 0) challengeOf(cid) else randomChallenge(intent.getIntExtra("level", 0))
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
             .launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.ACTIVITY_RECOGNITION))
@@ -47,7 +48,7 @@ class ChallengeActivity : ComponentActivity() {
                 BackHandler(!finished && !test) {}   // alarm sungguhan: tombol back diblokir
                 if (!finished) Flow(ch) {
                     if (test) finish() else {
-                        History.record(this); Repo.logAlarmAsync(ch.id); AlarmService.stop(this); finished = true
+                        History.record(this); Repo.logAlarmAsync(ch.id, alarmId); AlarmService.stop(this); finished = true
                     }
                 } else MorningBrief { finish() }
             } } }
