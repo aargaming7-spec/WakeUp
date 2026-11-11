@@ -39,7 +39,7 @@ Dibuat sebagai proyek kelompok mata kuliah pemrograman mobile, Teknik Elektro, U
 1. Clone repo dan buka di Android Studio, pilih branch `Database`.
 2. **Siapkan Supabase** (lihat [`docs/DATABASE.md`](docs/DATABASE.md)):
    1. Buat project di [supabase.com](https://supabase.com).
-   2. SQL Editor → jalankan `supabase-schema.sql`, lalu `supabase-migration.sql`.
+   2. SQL Editor → jalankan berurutan: `supabase-schema.sql`, `supabase-migration.sql`, lalu `supabase-backend.sql`.
    3. (Opsional) daftar satu akun lewat aplikasi, lalu jalankan `supabase-seed.sql` untuk data demo.
    4. Authentication → Providers → Email: matikan *Confirm email* jika ingin langsung bisa login saat demo.
 3. Isi `app/src/main/java/com/wakeup/Config.kt` dengan **Project URL** dan **publishable/anon key** dari Project Settings → API.
@@ -55,17 +55,21 @@ app/src/main/java/com/wakeup/
 ├── Alarm*.kt, Boot*.kt    Penjadwalan alarm, service, receiver
 ├── Supa.kt                Klien Supabase (auth + REST + refresh token)
 ├── Repo.kt                Seluruh akses data (alarm, habit, reminder, teman, grup, jadwal, statistik)
+├── SyncQueue.kt           Antrian offline untuk riwayat bangun
+├── NotificationSync.kt    Pasang ulang pengingat habit & reminder (juga setelah HP restart)
 ├── Habit/Schedule/Social/SettingsScreen.kt
 └── Ui.kt, MorningBrief.kt, Notifier.kt
 docs/DATABASE.md           ERD, RLS, trigger
+docs/BACKEND.md            Arsitektur backend, alur data, strategi offline
 supabase-schema.sql        Skema awal
 supabase-migration.sql     Perbaikan v2
+supabase-backend.sql       Backend v3 (trigger alarm_logs, fungsi username_available)
 supabase-seed.sql          Data demo
 ```
 
 ## Database
 
-ERD, tabel, kebijakan keamanan, dan trigger dijelaskan di [`docs/DATABASE.md`](docs/DATABASE.md).
+ERD, tabel, kebijakan keamanan, dan trigger dijelaskan di [`docs/DATABASE.md`](docs/DATABASE.md). Arsitektur backend dan alur datanya ada di [`docs/BACKEND.md`](docs/BACKEND.md).
 
 ## Rencana pengembangan
 

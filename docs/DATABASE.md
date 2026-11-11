@@ -9,7 +9,8 @@ File SQL (jalankan berurutan di Supabase → SQL Editor):
 |---|---|---|
 | 1 | `supabase-schema.sql` | Membuat tabel, trigger, fungsi bantu, RLS, index |
 | 2 | `supabase-migration.sql` | Perbaikan v2: sinkron alarm aman, `updated_at`, trigger undangan jadwal, pengetatan policy |
-| 3 | `supabase-seed.sql` | (Opsional) data demo untuk presentasi |
+| 3 | `supabase-backend.sql` | v3: `alarm_logs` terhubung ke `alarms`, fungsi `username_available` |
+| 4 | `supabase-seed.sql` | (Opsional) data demo untuk presentasi |
 
 ## ERD
 
@@ -49,7 +50,8 @@ erDiagram
     ALARM_LOGS {
         uuid id PK
         uuid user_id FK
-        uuid alarm_id FK
+        uuid alarm_id FK "diisi otomatis trigger"
+        int alarm_local_id "ID alarm di HP"
         int challenge_id
         timestamptz completed_at
     }
@@ -145,6 +147,13 @@ RLS aktif di **semua** tabel.
 | `on_member_added` / `on_member_removed` | Anggota baru diundang ke jadwal mendatang; anggota yang keluar dihapus dari jadwal mendatang |
 | `friendships_guard` | Mencegah penerima mengubah kolom selain `status` |
 | `*_set_updated_at` | Mengisi `updated_at` otomatis |
+| `alarm_logs_link` | Mengisi `alarm_logs.alarm_id` dari `alarm_local_id` yang dikirim aplikasi |
+
+## Fungsi RPC
+
+| Fungsi | Fungsi |
+|---|---|
+| `username_available(uname)` | Mengembalikan `true/false`; dipanggil saat registrasi (bisa diakses sebelum login) |
 
 ## Catatan desain
 
