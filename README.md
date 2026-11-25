@@ -36,14 +36,14 @@ Dibuat sebagai proyek kelompok mata kuliah pemrograman mobile, Teknik Elektro, U
 
 ## Cara menjalankan
 
-1. Clone repo dan buka di Android Studio, pilih branch `Database`.
+1. Clone repo terbaru, checkout branch `main`, lalu buka folder `WakeUp` di Android Studio. Gunakan Gradle JDK 17; project menyediakan Gradle Wrapper 8.7 (`gradlew` / `gradlew.bat`).
 2. **Siapkan Supabase** (lihat [`docs/DATABASE.md`](docs/DATABASE.md)):
    1. Buat project di [supabase.com](https://supabase.com).
    2. SQL Editor → jalankan berurutan: `supabase-schema.sql`, `supabase-migration.sql`, lalu `supabase-backend.sql`.
    3. (Opsional) daftar satu akun lewat aplikasi, lalu jalankan `supabase-seed.sql` untuk data demo.
    4. Authentication → Providers → Email: matikan *Confirm email* jika ingin langsung bisa login saat demo.
 3. Isi `app/src/main/java/com/wakeup/Config.kt` dengan **Project URL** dan **publishable/anon key** dari Project Settings → API.
-4. Build & jalankan (HP fisik disarankan karena memakai kamera dan sensor).
+4. Tunggu Gradle Sync selesai, lalu pilih **Run** untuk menjalankan aplikasi. Untuk build APK debug dari terminal: `./gradlew assembleDebug` (Windows: `gradlew.bat assembleDebug`). HP fisik disarankan karena aplikasi memakai kamera dan sensor.
 
 ## Struktur
 
