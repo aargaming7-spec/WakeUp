@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
@@ -24,6 +25,10 @@ object AlarmStore {
                 o.getBoolean("e"), ints(o.optString("d", "")))
         }
     }
+    fun canScheduleExactAlarms(c: Context): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            c.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
+
     fun save(c: Context, list: List<Alarm>) {
         val a = JSONArray()
         list.forEach { a.put(JSONObject().put("id", it.id).put("h", it.hour).put("m", it.minute)
@@ -31,11 +36,15 @@ object AlarmStore {
         prefs(c).edit().putString("alarms", a.toString()).apply()
         list.forEach { if (it.enabled) schedule(c, it) else cancel(c, it) }
     }
-    fun rescheduleAll(c: Context) = load(c).filter { it.enabled }.forEach { schedule(c, it) }
+    fun rescheduleAll(c: Context) {
+        if (!canScheduleExactAlarms(c)) return
+        load(c).filter { it.enabled }.forEach { schedule(c, it) }
+    }
     private fun pi(c: Context, al: Alarm) = PendingIntent.getBroadcast(c, al.id,
         Intent(c, AlarmReceiver::class.java).putExtra("id", al.id),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     fun schedule(c: Context, al: Alarm) {
+        if (!canScheduleExactAlarms(c)) return
         val now = System.currentTimeMillis()
         val cal = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, al.hour); set(Calendar.MINUTE, al.minute)
