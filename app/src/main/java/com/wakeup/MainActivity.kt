@@ -2,6 +2,8 @@ package com.wakeup
 
 import android.Manifest
 import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -331,14 +333,39 @@ fun AlarmScreen() {
     var editing by remember { mutableStateOf<Alarm?>(null) }
     var testing by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var exactAlarmAllowed by remember { mutableStateOf(AlarmStore.canScheduleExactAlarms(ctx)) }
+    var showExactAlarmDialog by remember { mutableStateOf(false) }
     val exec = rememberRunner { error = "Sinkron cloud gagal: $it" }
     val w = MaterialTheme.wake
+    val exactAlarmAccessLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        exactAlarmAllowed = AlarmStore.canScheduleExactAlarms(ctx)
+        if (exactAlarmAllowed) {
+            AlarmStore.rescheduleAll(ctx)
+            showExactAlarmDialog = false
+        }
+    }
+
+    fun requestExactAlarmAccess() {
+        if (exactAlarmAllowed) return
+        val intent = Intent(
+            Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+            Uri.parse("package:${ctx.packageName}")
+        )
+        exactAlarmAccessLauncher.launch(intent)
+    }
 
     fun update(l: List<Alarm>) {
-        alarms = l; AlarmStore.save(ctx, l)
+        alarms = l
+        AlarmStore.save(ctx, l)
+        exactAlarmAllowed = AlarmStore.canScheduleExactAlarms(ctx)
+        if (!exactAlarmAllowed && l.any { it.enabled }) showExactAlarmDialog = true
         if (Supa.loggedIn) exec { Repo.pushAlarms(l); error = null }
     }
     LaunchedEffect(Unit) {
+        exactAlarmAllowed = AlarmStore.canScheduleExactAlarms(ctx)
+        if (exactAlarmAllowed) AlarmStore.rescheduleAll(ctx)
         if (Supa.loggedIn && alarms.isEmpty()) exec {
             val remote = Repo.pullAlarms()
             if (remote.isNotEmpty()) { alarms = remote; AlarmStore.save(ctx, remote) }
@@ -350,6 +377,16 @@ fun AlarmScreen() {
 
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         ScreenHeader("Alarm", overline = "${alarms.count { it.enabled }} aktif")
+        if (!exactAlarmAllowed) {
+            Card2(color = w.dawn) {
+                Text("Izin alarm tepat waktu belum aktif", style = MaterialTheme.typography.titleSmall, color = w.sunText)
+                Text("Alarm sudah tersimpan, tetapi Android belum mengizinkan WakeUp menjadwalkannya tepat waktu.",
+                    style = MaterialTheme.typography.bodySmall, color = Ink)
+                TextButton(onClick = { requestExactAlarmAccess() }) {
+                    Text("Aktifkan izin alarm", color = w.sunText)
+                }
+            }
+        }
         // Riwayat minggu ini
         Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             DAYS.forEachIndexed { i, (n, _) ->
@@ -397,6 +434,25 @@ fun AlarmScreen() {
     if (adding) AlarmDialog(null, onSave = { update(alarms + it); adding = false }, onDismiss = { adding = false })
     editing?.let { cur ->
         AlarmDialog(cur, onSave = { n -> update(alarms.map { if (it.id == cur.id) n else it }); editing = null }, onDismiss = { editing = null })
+    }
+
+    if (showExactAlarmDialog) {
+        AlertDialog(
+            onDismissRequest = { showExactAlarmDialog = false },
+            title = { Text("Izin alarm diperlukan") },
+            text = {
+                Text("Android memerlukan akses ‘Alarm & pengingat’ agar alarm WakeUp berbunyi sesuai jadwal. Alarm yang baru dibuat sudah tersimpan; aktifkan izin ini untuk menjadwalkannya.")
+            },
+            confirmButton = {
+                TextButton({
+                    showExactAlarmDialog = false
+                    requestExactAlarmAccess()
+                }) { Text("Buka pengaturan") }
+            },
+            dismissButton = {
+                TextButton({ showExactAlarmDialog = false }) { Text("Nanti") }
+            }
+        )
     }
 
     if (testing) {
