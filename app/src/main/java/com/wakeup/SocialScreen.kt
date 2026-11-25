@@ -1,6 +1,7 @@
 package com.wakeup
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -16,12 +17,9 @@ private fun Profile.label() = if (fullName.isNullOrBlank()) "@$username" else "$
 @Composable
 fun SocialScreen() {
     var sub by remember { mutableIntStateOf(0) }
-    Column(Modifier.fillMaxSize().padding(20.dp)) {
-        Text("Teman & Grup", style = MaterialTheme.typography.headlineMedium, color = Ink)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 8.dp)) {
-            FilterChip(sub == 0, { sub = 0 }, { Text("Teman") })
-            FilterChip(sub == 1, { sub = 1 }, { Text("Grup") })
-        }
+    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+        ScreenHeader("Teman & Grup", overline = "Bangun bareng")
+        Segmented(listOf("Teman", "Grup"), sub, { sub = it }, Modifier.padding(bottom = 12.dp))
         if (sub == 0) FriendsPane() else GroupsPane()
     }
 }
@@ -49,41 +47,47 @@ fun FriendsPane() {
         }
         results.forEach { p ->
             val known = friends.any { it.other.id == p.id && it.status != "declined" }
-            Card2(color = Color(0xFFF1F2F5)) {
+            Card2 {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(p.label(), Modifier.weight(1f))
+                    Avatar(p.username)
+                    Spacer(Modifier.width(12.dp))
+                    Text(p.label(), Modifier.weight(1f), color = Ink)
                     Button({ exec { Repo.sendRequest(p.id); results = results.filter { it.id != p.id }; tick++ } }, enabled = !known) {
                         Text(if (known) "Sudah" else "Tambah")
                     }
                 }
             }
         }
-        if (incoming.isNotEmpty()) Text("Permintaan masuk", style = MaterialTheme.typography.titleSmall)
+        if (incoming.isNotEmpty()) SectionLabel("Permintaan masuk")
         incoming.forEach { f ->
             Card2 {
-                Text(f.other.label())
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Avatar(f.other.username); Spacer(Modifier.width(12.dp)); Text(f.other.label(), color = Ink)
+                }
+                Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button({ exec { Repo.answerRequest(f.id, true); tick++ } }) { Text("Terima") }
                     OutlinedButton({ exec { Repo.answerRequest(f.id, false); tick++ } }) { Text("Tolak") }
                 }
             }
         }
-        Text("Teman (${accepted.size})", style = MaterialTheme.typography.titleSmall)
-        if (accepted.isEmpty()) Text("Belum ada teman. Cari username temanmu di atas.", style = MaterialTheme.typography.bodySmall)
+        SectionLabel("Teman (${accepted.size})")
+        if (accepted.isEmpty()) EmptyState("Belum ada teman", "Cari username temanmu di kolom di atas.")
         accepted.forEach { f ->
             Card2 {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(f.other.label(), Modifier.weight(1f))
-                    TextButton({ exec { Repo.removeFriendship(f.id); tick++ } }) { Text("Hapus") }
+                    Avatar(f.other.username); Spacer(Modifier.width(12.dp))
+                    Text(f.other.label(), Modifier.weight(1f), color = Ink)
+                    TextButton({ exec { Repo.removeFriendship(f.id); tick++ } }) { Text("Hapus", color = MaterialTheme.colorScheme.error) }
                 }
             }
         }
-        if (sent.isNotEmpty()) Text("Menunggu jawaban", style = MaterialTheme.typography.titleSmall)
+        if (sent.isNotEmpty()) SectionLabel("Menunggu jawaban")
         sent.forEach { f ->
             Card2 {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(f.other.label(), Modifier.weight(1f))
-                    TextButton({ exec { Repo.removeFriendship(f.id); tick++ } }) { Text("Batalkan") }
+                    Avatar(f.other.username); Spacer(Modifier.width(12.dp))
+                    Text(f.other.label(), Modifier.weight(1f), color = Muted)
+                    TextButton({ exec { Repo.removeFriendship(f.id); tick++ } }) { Text("Batalkan", color = Muted) }
                 }
             }
         }
@@ -107,20 +111,24 @@ fun GroupsPane() {
     Column(Modifier.fillMaxSize()) {
         ErrorText(error)
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (groups.isEmpty()) Text("Belum ada grup. Buat grup untuk kelompok tugas, belajar, atau kelas.")
+            if (groups.isEmpty()) EmptyState("Belum ada grup", "Buat grup untuk kelompok tugas, belajar, atau kelas.")
             groups.forEach { gr ->
-                Card2 {
+                Card2(Modifier.clickable { open = gr }) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        Avatar(gr.name, 48.dp, square = true)
+                        Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("👥 ${gr.name}", style = MaterialTheme.typography.titleMedium)
-                            if (!gr.description.isNullOrBlank()) Text(gr.description, style = MaterialTheme.typography.bodySmall)
+                            Text(gr.name, style = MaterialTheme.typography.titleMedium, color = Ink)
+                            if (!gr.description.isNullOrBlank()) Text(gr.description, style = MaterialTheme.typography.bodySmall, color = Muted)
                         }
-                        Button({ open = gr }) { Text("Buka") }
+                        Text("Buka  ›", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.wake.sunText)
                     }
                 }
             }
         }
-        Button({ creating = true }, Modifier.fillMaxWidth()) { Text("+ Buat Grup") }
+        Spacer(Modifier.height(10.dp))
+        SunButton("Buat grup", { creating = true })
+        Spacer(Modifier.height(12.dp))
     }
 
     if (creating) {
@@ -131,7 +139,7 @@ fun GroupsPane() {
                 exec { Repo.createGroup(name.trim(), desc.trim()); tick++ }; creating = false
             }, enabled = name.isNotBlank()) { Text("Buat") } },
             dismissButton = { TextButton({ creating = false }) { Text("Batal") } },
-            title = { Text("Grup Baru") },
+            title = { Text("Grup baru") },
             text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 OutlinedTextField(name, { name = it }, label = { Text("Nama grup") }, singleLine = true)
                 OutlinedTextField(desc, { desc = it }, label = { Text("Deskripsi (opsional)") })
@@ -163,40 +171,46 @@ fun GroupDetail(group: Group, onBack: () -> Unit) {
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onBack) { Text("← Kembali") }
-            Text(group.name, style = MaterialTheme.typography.titleLarge)
+            TextButton(onBack, contentPadding = PaddingValues(end = 12.dp)) { Text("← Kembali", color = Muted) }
+            Text(group.name, style = MaterialTheme.typography.titleLarge, color = Ink)
         }
         if (!group.description.isNullOrBlank()) Text(group.description)
         ErrorText(error)
 
-        Text("Anggota (${members.size})", style = MaterialTheme.typography.titleSmall)
+        SectionLabel("Anggota (${members.size})")
         members.forEach { m ->
             Card2 {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(m.profile.label() + if (m.role == "owner") "  👑" else "", Modifier.weight(1f))
+                    Avatar(m.profile.username); Spacer(Modifier.width(12.dp))
+                    Text(m.profile.label(), Modifier.weight(1f), color = Ink)
+                    if (m.role == "owner") Tag("Pemilik", MaterialTheme.wake.dawn, MaterialTheme.wake.sunText)
                     if (isOwner && m.role != "owner")
-                        TextButton({ exec { Repo.removeMember(group.id, m.profile.id); tick++ } }) { Text("Keluarkan") }
+                        TextButton({ exec { Repo.removeMember(group.id, m.profile.id); tick++ } }) { Text("Keluarkan", color = MaterialTheme.colorScheme.error) }
                 }
             }
         }
-        if (isOwner) OutlinedButton({ addingMember = true }) { Text("+ Tambah anggota dari teman") }
+        if (isOwner) OutlinedButton({ addingMember = true }) { Text("Tambah anggota dari teman") }
 
-        Text("Jadwal Bersama", style = MaterialTheme.typography.titleSmall)
-        if (schedules.isEmpty()) Text("Belum ada jadwal.", style = MaterialTheme.typography.bodySmall)
+        SectionLabel("Jadwal bersama")
+        if (schedules.isEmpty()) Text("Belum ada jadwal.", style = MaterialTheme.typography.bodyMedium, color = Muted)
         schedules.forEach { s ->
-            Card2(color = Color(0xFFF1F2F5)) {
-                Text(s.title, style = MaterialTheme.typography.titleSmall)
-                Text(fmtDateTime(s.startsAt) + (s.endsAt?.let { " – " + fmtTime(it) } ?: ""), style = MaterialTheme.typography.labelMedium)
-                if (!s.description.isNullOrBlank()) Text(s.description, style = MaterialTheme.typography.bodySmall)
-                Text("✅ ${s.going} ikut  •  ⏳ ${s.invited} diundang  •  ❌ ${s.declined} tidak bisa", style = MaterialTheme.typography.labelSmall)
+            Card2 {
+                Text(s.title, style = MaterialTheme.typography.titleMedium, color = Ink)
+                Text(fmtDateTime(s.startsAt) + (s.endsAt?.let { " – " + fmtTime(it) } ?: ""), style = MaterialTheme.typography.labelMedium, color = Muted)
+                if (!s.description.isNullOrBlank()) Text(s.description, style = MaterialTheme.typography.bodySmall, color = Muted)
+                Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Tag("${s.going} ikut", MaterialTheme.wake.mossBg, MaterialTheme.wake.moss)
+                    Tag("${s.invited} diundang", MaterialTheme.wake.amberBg, MaterialTheme.wake.amber)
+                    Tag("${s.declined} tidak bisa", MaterialTheme.colorScheme.surfaceVariant, Muted)
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     FilterChip(s.myStatus == "going", { exec { Repo.answerSchedule(s.id, true); tick++ } }, { Text("Ikut") })
                     FilterChip(s.myStatus == "declined", { exec { Repo.answerSchedule(s.id, false); tick++ } }, { Text("Tidak bisa") })
-                    if (s.createdBy == me) TextButton({ exec { Repo.deleteSchedule(s.id); tick++ } }) { Text("Hapus") }
+                    if (s.createdBy == me) TextButton({ exec { Repo.deleteSchedule(s.id); tick++ } }) { Text("Hapus", color = MaterialTheme.colorScheme.error) }
                 }
             }
         }
-        Button({ addingSchedule = true }) { Text("+ Jadwal Bersama") }
+        SunButton("Tambah jadwal bersama", { addingSchedule = true })
 
         Spacer(Modifier.height(8.dp))
         if (isOwner) TextButton({ exec { Repo.deleteGroup(group.id); onBack() } }) {
@@ -210,7 +224,7 @@ fun GroupDetail(group: Group, onBack: () -> Unit) {
         val candidates = friends.map { it.other }.filter { f -> members.none { it.profile.id == f.id } }
         AlertDialog(onDismissRequest = { addingMember = false },
             confirmButton = { TextButton({ addingMember = false }) { Text("Selesai") } },
-            title = { Text("Tambah Anggota") },
+            title = { Text("Tambah anggota") },
             text = { Column(Modifier.verticalScroll(rememberScrollState())) {
                 if (candidates.isEmpty()) Text("Semua temanmu sudah di grup, atau kamu belum punya teman.")
                 candidates.forEach { p ->
@@ -235,7 +249,7 @@ fun GroupDetail(group: Group, onBack: () -> Unit) {
                 addingSchedule = false
             }, enabled = title.isNotBlank() && start != null) { Text("Buat") } },
             dismissButton = { TextButton({ addingSchedule = false }) { Text("Batal") } },
-            title = { Text("Jadwal Bersama") },
+            title = { Text("Jadwal bersama") },
             text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 OutlinedTextField(title, { title = it }, label = { Text("Judul (meeting, kelas, belajar bareng)") })
                 OutlinedTextField(desc, { desc = it }, label = { Text("Deskripsi (opsional)") })

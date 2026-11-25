@@ -1,7 +1,11 @@
 package com.wakeup
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -34,34 +38,44 @@ fun ScheduleScreen() {
     }
     val conflicts = shown.count { it.conflict } / 2
 
-    Column(Modifier.fillMaxSize().padding(20.dp)) {
-        Text("Jadwal", style = MaterialTheme.typography.headlineMedium, color = Ink)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(vertical = 8.dp)) {
-            FilterChip(!weekly, { weekly = false }, { Text("Hari ini") })
-            FilterChip(weekly, { weekly = true }, { Text("Minggu ini") })
+    val w = MaterialTheme.wake
+    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+        ScreenHeader("Jadwal", overline = if (weekly) "7 hari ke depan" else fmtDate(Instant.now()))
+        Segmented(listOf("Hari ini", "Minggu ini"), if (weekly) 1 else 0, { weekly = it == 1 }, Modifier.padding(bottom = 10.dp))
+        if (conflicts > 0) Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(w.amberBg).padding(12.dp)) {
+            Text("$conflicts jadwal saling bertabrakan", color = w.amber, style = MaterialTheme.typography.labelLarge)
         }
-        if (conflicts > 0) Text("⚠ $conflicts jadwal saling bertabrakan", color = Color(0xFFD9822B), style = MaterialTheme.typography.labelLarge)
         ErrorText(error)
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
-            if (shown.isEmpty()) Text("Tidak ada jadwal.", Modifier.padding(8.dp))
+            if (shown.isEmpty()) EmptyState("Tidak ada jadwal", "Tambahkan reminder, atau tunggu undangan dari grupmu.")
             shown.groupBy { it.start.local().toLocalDate() }.forEach { (_, day) ->
-                Text(fmtDate(day.first().start), style = MaterialTheme.typography.titleSmall, color = Ink, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
+                SectionLabel(fmtDate(day.first().start), Modifier.padding(top = 14.dp, bottom = 6.dp))
                 day.forEach { it2 ->
-                    Card2(Modifier.padding(vertical = 4.dp), if (it2.conflict) Color(0xFFFFF4E0) else Color.White) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (it2.kind == "reminder") Checkbox(it2.done, { c -> exec { Repo.setReminderDone(it2.refId, c); tick++ } })
-                            Column(Modifier.weight(1f)) {
-                                Text("${fmtTime(it2.start)}–${fmtTime(it2.end)}  ${it2.title}",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    textDecoration = if (it2.done || it2.status == "declined") androidx.compose.ui.text.style.TextDecoration.LineThrough else null)
-                                Text((if (it2.kind == "group") "👥 " else "🔔 ") + it2.sub + if (it2.conflict) "  ⚠ bentrok" else "",
-                                    style = MaterialTheme.typography.labelMedium)
+                    val accent = if (it2.conflict) w.amber else if (it2.kind == "group") w.group else w.sun
+                    Card2(Modifier.padding(vertical = 4.dp), if (it2.conflict) w.amberBg else Color.Unspecified) {
+                        Row(Modifier.height(IntrinsicSize.Min), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.width(52.dp)) {
+                                Text(fmtTime(it2.start), style = MaterialTheme.typography.titleSmall.copy(fontFeatureSettings = "tnum"), color = Ink)
+                                Text(fmtTime(it2.end), style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"), color = Muted)
                             }
-                            if (it2.kind == "reminder") TextButton({
-                                exec { Notifier.cancel(ctx, it2.refId.hashCode()); Repo.deleteReminder(it2.refId); tick++ }
-                            }) { Text("Hapus") }
+                            Box(Modifier.width(3.dp).fillMaxHeight().clip(CircleShape).background(accent))
+                            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                                Text(it2.title, style = MaterialTheme.typography.titleSmall, color = Ink,
+                                    textDecoration = if (it2.done || it2.status == "declined") androidx.compose.ui.text.style.TextDecoration.LineThrough else null)
+                                Text((if (it2.kind == "group") "Grup · " else "Reminder · ") + it2.sub + if (it2.conflict) " · bentrok" else "",
+                                    style = MaterialTheme.typography.labelMedium, color = if (it2.conflict) w.amber else Muted)
+                            }
+                            if (it2.kind == "reminder") {
+                                Checkbox(it2.done, { c -> exec { Repo.setReminderDone(it2.refId, c); tick++ } },
+                                    colors = CheckboxDefaults.colors(checkedColor = w.sun, checkmarkColor = w.onSun))
+                                TextButton({
+                                    exec { Notifier.cancel(ctx, it2.refId.hashCode()); Repo.deleteReminder(it2.refId); tick++ }
+                                }, contentPadding = PaddingValues(horizontal = 6.dp)) {
+                                    Text("Hapus", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelLarge)
+                                }
+                            }
                         }
-                        if (it2.kind == "group") Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (it2.kind == "group") Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             FilterChip(it2.status == "going", { exec { Repo.answerSchedule(it2.refId, true); tick++ } }, { Text("Ikut") })
                             FilterChip(it2.status == "declined", { exec { Repo.answerSchedule(it2.refId, false); tick++ } }, { Text("Tidak bisa") })
                         }
@@ -69,7 +83,9 @@ fun ScheduleScreen() {
                 }
             }
         }
-        Button({ adding = true }, Modifier.fillMaxWidth()) { Text("+ Tambah Reminder") }
+        Spacer(Modifier.height(10.dp))
+        SunButton("Tambah reminder", { adding = true })
+        Spacer(Modifier.height(12.dp))
     }
 
     if (adding) {
@@ -85,7 +101,7 @@ fun ScheduleScreen() {
                     val at = whenAt!!
                     exec {
                         val id = Repo.addReminder(title.trim(), cat, notes.trim(), at, before)
-                        Notifier.schedule(ctx, id.hashCode(), at.toEpochMilli() - before * 60_000L, "🔔 ${title.trim()}",
+                        Notifier.schedule(ctx, id.hashCode(), at.toEpochMilli() - before * 60_000L, "Reminder: ${title.trim()}",
                             "Mulai pukul ${fmtTime(at)} (${cat})")
                         tick++
                     }
@@ -93,7 +109,7 @@ fun ScheduleScreen() {
                 }, enabled = title.isNotBlank() && whenAt != null) { Text("Simpan") }
             },
             dismissButton = { TextButton({ adding = false }) { Text("Batal") } },
-            title = { Text("Reminder Baru") },
+            title = { Text("Reminder baru") },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     OutlinedTextField(title, { title = it }, label = { Text("Judul") }, singleLine = true)

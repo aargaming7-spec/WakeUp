@@ -9,6 +9,6 @@ class AlarmReceiver : BroadcastReceiver() {
         val id = i.getIntExtra("id", -1)
         val al = AlarmStore.load(c).firstOrNull { it.id == id } ?: return
         AlarmStore.schedule(c, al) // jadwalkan lagi besok
-        c.startForegroundService(Intent(c, AlarmService::class.java).putExtra("level", al.level))
+        c.startForegroundService(Intent(c, AlarmService::class.java).putExtra("level", al.level).putExtra("alarmId", al.id))
     }
 }

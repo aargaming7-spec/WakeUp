@@ -1,7 +1,11 @@
 package com.wakeup
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,38 +34,49 @@ fun HabitScreen() {
         }
     }
 
-    Column(Modifier.fillMaxSize().padding(20.dp)) {
-        Text("Habit Tracker", style = MaterialTheme.typography.headlineMedium, color = Ink)
-        Text("${habits.count { it.today >= it.target }} dari ${habits.size} tercapai hari ini", style = MaterialTheme.typography.labelLarge)
+    val w = MaterialTheme.wake
+    val done = habits.count { it.today >= it.target }
+    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+        ScreenHeader("Habit", overline = "$done dari ${habits.size} tercapai hari ini")
         ErrorText(error)
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(top = 8.dp)) {
-            if (habits.isEmpty()) Text("Belum ada habit. Tambahkan yang pertama!")
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (habits.isEmpty()) EmptyState("Belum ada habit", "Mulai dari satu kebiasaan kecil, misalnya minum air.")
             habits.forEach { h ->
-                Card2(Modifier.padding(vertical = 5.dp)) {
+                val full = h.today >= h.target
+                Card2 {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(h.icon, fontSize = 28.sp)
-                        Spacer(Modifier.width(10.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(h.name, style = MaterialTheme.typography.titleMedium)
-                            Text("${h.today}/${h.target} ${h.unit}" + (h.reminder?.let { " • ⏰ ${it.take(5)}" } ?: ""),
-                                style = MaterialTheme.typography.labelMedium)
+                        Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(w.dawn), contentAlignment = Alignment.Center) {
+                            Text(h.icon, fontSize = 22.sp)
                         }
-                        Text("🔥 ${h.streak}")
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(h.name, style = MaterialTheme.typography.titleMedium, color = Ink)
+                            Text("${h.today}/${h.target} ${h.unit}" + (h.reminder?.let { " · ingatkan ${it.take(5)}" } ?: ""),
+                                style = MaterialTheme.typography.labelMedium, color = Muted)
+                        }
+                        if (h.streak > 0) Tag("${h.streak} hari", w.dawn, w.sunText)
                     }
-                    LinearProgressIndicator(progress = { (h.today.toFloat() / h.target).coerceIn(0f, 1f) },
-                        Modifier.fillMaxWidth().padding(vertical = 8.dp))
+                    Bar(h.today.toFloat() / h.target, if (full) w.moss else w.sun, Modifier.padding(vertical = 14.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedButton({ exec { Repo.setHabitCount(h.id, (h.today - 1).coerceAtLeast(0)); tick++ } }) { Text("−1") }
+                        RoundButton("−", "Kurangi ${h.name}", { exec { Repo.setHabitCount(h.id, (h.today - 1).coerceAtLeast(0)); tick++ } })
                         Spacer(Modifier.width(8.dp))
-                        Button({ exec { Repo.setHabitCount(h.id, h.today + 1); tick++ } }) { Text("+1") }
+                        RoundButton("+", "Tambah ${h.name}", { exec { Repo.setHabitCount(h.id, h.today + 1); tick++ } }, filled = true)
                         Spacer(Modifier.weight(1f))
-                        Text("7 hari: " + h.week.joinToString("") { if (it) "●" else "○" }, style = MaterialTheme.typography.labelMedium)
-                        TextButton({ exec { Notifier.cancel(ctx, ("h" + h.id).hashCode()); Repo.deleteHabit(h.id); tick++ } }) { Text("Hapus") }
+                        h.week.forEach { on ->
+                            Box(Modifier.padding(start = 4.dp).size(9.dp).clip(CircleShape)
+                                .background(if (on) w.sun else MaterialTheme.colorScheme.surfaceVariant))
+                        }
+                        TextButton({ exec { Notifier.cancel(ctx, ("h" + h.id).hashCode()); Repo.deleteHabit(h.id); tick++ } },
+                            contentPadding = PaddingValues(horizontal = 10.dp)) {
+                            Text("Hapus", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelLarge)
+                        }
                     }
                 }
             }
         }
-        Button({ adding = true }, Modifier.fillMaxWidth()) { Text("+ Tambah Habit") }
+        Spacer(Modifier.height(10.dp))
+        SunButton("Tambah habit", { adding = true })
+        Spacer(Modifier.height(12.dp))
     }
 
     if (adding) {
@@ -81,7 +96,7 @@ fun HabitScreen() {
                 }, enabled = name.isNotBlank()) { Text("Simpan") }
             },
             dismissButton = { TextButton({ adding = false }) { Text("Batal") } },
-            title = { Text("Habit Baru") },
+            title = { Text("Habit baru") },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     OutlinedTextField(name, { name = it }, label = { Text("Nama (mis. Minum air)") }, singleLine = true)
@@ -93,7 +108,7 @@ fun HabitScreen() {
                         OutlinedTextField(unit, { unit = it }, label = { Text("Satuan") }, singleLine = true, modifier = Modifier.weight(1f))
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Pengingat harian", Modifier.weight(1f)); Switch(remind, { remind = it })
+                        Text("Pengingat harian", Modifier.weight(1f)); Switch(remind, { remind = it }, colors = wakeSwitchColors())
                     }
                     if (remind) TimePicker(ts)
                 }

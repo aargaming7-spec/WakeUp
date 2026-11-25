@@ -23,9 +23,10 @@ class AlarmService : Service() {
 
     override fun onStartCommand(i: Intent?, f: Int, s: Int): Int {
         val level = i?.getIntExtra("level", 0) ?: 0
+        val alarmId = i?.getIntExtra("alarmId", -1) ?: -1
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel("alarm", "Alarm", NotificationManager.IMPORTANCE_HIGH))
-        val open = Intent(this, ChallengeActivity::class.java).putExtra("level", level)
+        val open = Intent(this, ChallengeActivity::class.java).putExtra("level", level).putExtra("alarmId", alarmId)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         val pi = PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val n = Notification.Builder(this, "alarm").setSmallIcon(android.R.drawable.ic_lock_idle_alarm)

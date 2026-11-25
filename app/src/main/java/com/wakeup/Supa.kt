@@ -1,7 +1,9 @@
 package com.wakeup
 
 import android.content.Context
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -16,14 +18,25 @@ object Supa {
     private val http = OkHttpClient()
     private val JSON = "application/json".toMediaType()
     private lateinit var ctx: Context
-    fun init(c: Context) { ctx = c.applicationContext }
+    fun init(c: Context) { ctx = c.applicationContext; SyncQueue.init(c) }
     private fun p() = ctx.getSharedPreferences("supa", Context.MODE_PRIVATE)
 
     val token: String? get() = p().getString("at", null)
     val userId: String? get() = p().getString("uid", null)
     val email: String? get() = p().getString("email", null)
     val loggedIn: Boolean get() = token != null && userId != null
-    fun signOut() { p().edit().clear().apply() }
+    /** Hapus sesi lokal, lalu cabut token di server (di background, gagal pun tidak masalah). */
+    fun signOut() {
+        val t = token
+        p().edit().clear().apply()
+        if (t != null) CoroutineScope(Dispatchers.IO).launch {
+            runCatching {
+                http.newCall(Request.Builder().url(Config.SUPABASE_URL + "/auth/v1/logout")
+                    .header("apikey", Config.SUPABASE_ANON_KEY).header("Authorization", "Bearer $t")
+                    .post("".toRequestBody(JSON)).build()).execute().close()
+            }
+        }
+    }
 
     private fun saveSession(o: JSONObject): Boolean {
         val at = o.optString("access_token")
@@ -61,7 +74,8 @@ object Supa {
     private fun refresh(): Boolean {
         val rt = p().getString("rt", null) ?: return false
         return try { saveSession(authCall("/auth/v1/token?grant_type=refresh_token", JSONObject().put("refresh_token", rt))) }
-        catch (e: Exception) { false }
+        catch (e: ApiException) { signOut(); false }   // refresh token ditolak server: sesi benar-benar berakhir
+        catch (e: Exception) { false }                  // jaringan putus: sesi dipertahankan, coba lagi nanti
     }
 
     suspend fun rest(method: String, path: String, body: String? = null, prefer: String? = null): String = withContext(Dispatchers.IO) {
@@ -81,11 +95,17 @@ object Supa {
         if (r.code == 401 && refresh()) { r.close(); r = http.newCall(build()).execute() }
         r.use {
             val txt = it.body?.string().orEmpty()
+            if (it.code == 401) throw ApiException("Sesi berakhir atau tidak valid, silakan masuk lagi.")
             if (!it.isSuccessful) throw ApiException(
                 try { JSONObject(txt).optString("message", txt) } catch (e: Exception) { txt.ifEmpty { "Gagal (kode ${it.code})" } })
             txt
         }
     }
+
+    /** Cek username lewat fungsi database username_available (bisa dipanggil sebelum login). */
+    suspend fun usernameAvailable(u: String): Boolean = try {
+        rest("POST", "rpc/username_available", JSONObject().put("uname", u).toString()).trim() != "false"
+    } catch (e: Exception) { true }   // fungsi belum ada / offline: biarkan trigger database yang menangani
 
     suspend fun get(path: String): JSONArray = JSONArray(rest("GET", path).ifEmpty { "[]" })
 }
