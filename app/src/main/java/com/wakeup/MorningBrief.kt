@@ -1,7 +1,10 @@
 package com.wakeup
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,28 +29,47 @@ fun MorningBrief(onClose: () -> Unit) {
     }
     val today = LocalDate.now()
     val items = agenda.filter { it.start.local().toLocalDate() == today && !it.done && it.status != "declined" }
-    val soft = Color(0xFF9AA3B8)
+    val w = MaterialTheme.wake
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Spacer(Modifier.height(24.dp))
-        Text("Selamat pagi", style = MaterialTheme.typography.headlineMedium)
-        Text(fmtDate(Instant.now()), color = soft)
-        Card2(color = Color(0xFF171D2E)) {
-            Text("Streak bangun", color = soft)
-            Text("${History.streak(ctx)} hari berturut-turut", style = MaterialTheme.typography.titleLarge)
+        verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Spacer(Modifier.height(16.dp))
+        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(w.night)) {
+            SunMark(Modifier.matchParentSize(), cx = 1f, cy = 1f, scale = .5f)
+            Column(Modifier.padding(24.dp)) {
+                Text(fmtDate(Instant.now()).uppercase(), style = MaterialTheme.typography.labelSmall, color = w.onNightSoft)
+                Text("Kamu sudah bangun", style = MaterialTheme.typography.headlineMedium, color = w.onNight)
+                Spacer(Modifier.height(14.dp))
+                Text("${History.streak(ctx)}", style = MaterialTheme.typography.displayMedium, color = w.onNight)
+                Text("hari berturut-turut", color = w.onNightSoft)
+            }
         }
-        Text("Jadwal hari ini", style = MaterialTheme.typography.titleSmall)
-        when {
-            loading -> Text("Memuat...", color = soft)
-            !Supa.loggedIn -> Text("Masuk ke akunmu untuk melihat jadwal dan habit di sini.", color = soft)
-            items.isEmpty() -> Text("Tidak ada jadwal hari ini.", color = soft)
+        Card2 {
+            Text("Jadwal hari ini", style = MaterialTheme.typography.titleMedium, color = Ink)
+            when {
+                loading -> Text("Memuat...", color = Muted)
+                !Supa.loggedIn -> Text("Masuk ke akunmu untuk melihat jadwal dan habit di sini.", color = Muted)
+                items.isEmpty() -> Text("Tidak ada jadwal hari ini.", color = Muted)
+            }
+            Column(Modifier.padding(top = 6.dp)) {
+                items.forEach { TimelineRow(fmtTime(it.start), it.title, if (it.conflict) "Bentrok dengan jadwal lain" else null,
+                    if (it.conflict) w.amber else if (it.kind == "group") w.group else w.sun) }
+            }
         }
-        items.forEach { Text("${fmtTime(it.start)}  ${it.title}" + if (it.conflict) "  (bentrok)" else "") }
-        if (habits.isNotEmpty()) {
-            Text("Habit hari ini", style = MaterialTheme.typography.titleSmall)
-            habits.forEach { Text("${it.name}: ${it.today}/${it.target} ${it.unit}", color = soft) }
+        if (habits.isNotEmpty()) Card2 {
+            Text("Habit hari ini", style = MaterialTheme.typography.titleMedium, color = Ink)
+            Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                habits.forEach { h ->
+                    Column {
+                        Row {
+                            Text(h.name, Modifier.weight(1f), color = Ink)
+                            Text("${h.today}/${h.target} ${h.unit}", style = MaterialTheme.typography.labelMedium, color = Muted)
+                        }
+                        Bar(h.today.toFloat() / h.target, if (h.today >= h.target) w.moss else w.sun, Modifier.padding(top = 5.dp), 5.dp)
+                    }
+                }
+            }
         }
-        Button(onClose, Modifier.fillMaxWidth().padding(top = 8.dp)) { Text("Mulai hari ini") }
+        SunButton("Mulai hari ini", onClose)
     }
 }

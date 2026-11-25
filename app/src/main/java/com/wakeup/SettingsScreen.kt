@@ -24,38 +24,49 @@ fun SettingsScreen(onBack: () -> Unit, onLogout: () -> Unit, onOpenAuth: () -> U
         if (Supa.loggedIn) exec { profile = Repo.myProfile(); fullName = profile?.fullName ?: "" }
     }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        TextButton(onBack) { Text("← Kembali") }
-        Text("Pengaturan", style = MaterialTheme.typography.headlineMedium)
+    val w = MaterialTheme.wake
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        TextButton(onBack, contentPadding = PaddingValues(0.dp)) { Text("← Kembali", color = Muted) }
+        ScreenHeader("Pengaturan")
 
         Card2 {
-            Text("Akun", style = MaterialTheme.typography.titleSmall)
+            SectionLabel("Akun")
             if (Supa.loggedIn) {
-                Text("@${profile?.username ?: ""}")
-                Text(Supa.email ?: "", color = Muted, style = MaterialTheme.typography.bodySmall)
+                Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Avatar(profile?.username ?: "W", 48.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text("@${profile?.username ?: ""}", style = MaterialTheme.typography.titleMedium, color = Ink)
+                        Text(Supa.email ?: "", color = Muted, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
                 OutlinedTextField(fullName, { fullName = it }, label = { Text("Nama lengkap") }, singleLine = true,
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
-                Button({ exec { Repo.updateFullName(fullName.trim()); msg = "Nama tersimpan." } }, Modifier.padding(top = 8.dp)) { Text("Simpan nama") }
-                if (msg != null) Text(msg!!, style = MaterialTheme.typography.labelMedium, color = Muted)
+                    modifier = Modifier.fillMaxWidth().padding(top = 14.dp))
+                Spacer(Modifier.height(10.dp))
+                SunButton("Simpan nama", { exec { Repo.updateFullName(fullName.trim()); msg = "Nama tersimpan." } })
+                if (msg != null) Text(msg!!, Modifier.padding(top = 6.dp), style = MaterialTheme.typography.labelMedium, color = Muted)
             } else {
-                Text("Kamu belum masuk.", color = Muted)
-                Button(onOpenAuth, Modifier.padding(top = 8.dp)) { Text("Masuk atau daftar") }
+                Text("Kamu belum masuk.", Modifier.padding(vertical = 8.dp), color = Muted)
+                SunButton("Masuk atau daftar", onOpenAuth)
             }
         }
 
         Card2 {
-            Text("Alarm", style = MaterialTheme.typography.titleSmall)
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            SectionLabel("Alarm")
+            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Volume alarm selalu maksimal")
-                    Text("Volume dikembalikan ke maksimal tiap detik selama alarm bunyi.", style = MaterialTheme.typography.labelSmall, color = Muted)
+                    Text("Volume alarm selalu maksimal", style = MaterialTheme.typography.titleSmall, color = Ink)
+                    Text("Volume dikembalikan ke maksimal tiap detik selama alarm bunyi.", style = MaterialTheme.typography.labelMedium, color = Muted)
                 }
-                Switch(forceVolume, { forceVolume = it; prefs.edit().putBoolean("force_volume", it).apply() })
+                Spacer(Modifier.width(12.dp))
+                Switch(forceVolume, { forceVolume = it; prefs.edit().putBoolean("force_volume", it).apply() }, colors = wakeSwitchColors())
             }
         }
 
-        if (Supa.loggedIn) OutlinedButton(onLogout, Modifier.fillMaxWidth()) { Text("Keluar") }
+        if (Supa.loggedIn) OutlinedButton(onLogout, Modifier.fillMaxWidth().height(52.dp)) {
+            Text("Keluar", color = MaterialTheme.colorScheme.error)
+        }
         Text("WakeUp 1.0", style = MaterialTheme.typography.labelSmall, color = Muted, modifier = Modifier.align(Alignment.CenterHorizontally))
     }
 }
