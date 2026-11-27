@@ -18,7 +18,7 @@ object Supa {
     private val http = OkHttpClient()
     private val JSON = "application/json".toMediaType()
     private lateinit var ctx: Context
-    fun init(c: Context) { ctx = c.applicationContext; SyncQueue.init(c) }
+    fun init(c: Context) { ctx = c.applicationContext; SyncQueue.init(c); HabitLocal.init(c) }
     private fun p() = ctx.getSharedPreferences("supa", Context.MODE_PRIVATE)
 
     val token: String? get() = p().getString("at", null)
@@ -29,6 +29,7 @@ object Supa {
     fun signOut() {
         val t = token
         p().edit().clear().apply()
+        runCatching { HabitLocal.clear(); NotificationSync.clear(ctx) }   // jangan sisakan pengingat/progres akun lama
         if (t != null) CoroutineScope(Dispatchers.IO).launch {
             runCatching {
                 http.newCall(Request.Builder().url(Config.SUPABASE_URL + "/auth/v1/logout")

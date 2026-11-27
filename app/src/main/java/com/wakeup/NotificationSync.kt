@@ -20,7 +20,8 @@ object NotificationSync {
         val items = JSONArray()
         Repo.habits().forEach { h ->
             val t = h.reminder ?: return@forEach
-            items.put(JSONObject().put("key", ("h" + h.id).hashCode()).put("kind", "habit")
+            items.put(JSONObject().put("key", ("h" + h.id).hashCode()).put("kind", "habit").put("habitId", h.id)
+                .put("days", h.reminderDays.joinToString(","))
                 .put("time", t.take(5)).put("title", "${h.icon} ${h.name}").put("text", "Waktunya ${h.name}!"))
         }
         Repo.reminders().filter { !it.done && it.startsAt.isAfter(Instant.now()) }.forEach { r ->
@@ -32,6 +33,12 @@ object NotificationSync {
         read(c).forEach { old -> if (old.getInt("key") !in newKeys) Notifier.cancel(c, old.getInt("key")) }
         prefs(c).edit().putString("items", items.toString()).apply()
         scheduleAll(c, items)
+    }
+
+    /** Dipanggil saat logout: batalkan semua pengingat dari akun sebelumnya dan kosongkan cache. */
+    fun clear(c: Context) {
+        read(c).forEach { Notifier.cancel(c, it.getInt("key")) }
+        prefs(c).edit().clear().apply()
     }
 
     fun restoreFromCache(c: Context) {
@@ -48,7 +55,12 @@ object NotificationSync {
         for (i in 0 until items.length()) {
             val o = items.getJSONObject(i)
             when (o.getString("kind")) {
-                "habit" -> Notifier.scheduleDaily(c, o.getInt("key"), o.getString("time"), o.getString("title"), o.getString("text"))
+                "habit" -> {
+                    val hid = o.optString("habitId", "")
+                    if (hid.isNotEmpty()) Notifier.scheduleHabit(c, o.getInt("key"), hid, o.getString("time"),
+                        o.optString("days", "").split(",").filter { it.isNotEmpty() }.map { it.toInt() },
+                        o.getString("title"), o.getString("text"))
+                }
                 else -> Notifier.schedule(c, o.getInt("key"), o.getLong("at"), o.getString("title"), o.getString("text"))
             }
         }

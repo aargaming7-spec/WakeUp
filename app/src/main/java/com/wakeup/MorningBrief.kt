@@ -8,6 +8,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -22,6 +23,7 @@ fun MorningBrief(onClose: () -> Unit) {
     var habits by remember { mutableStateOf<List<Habit>>(emptyList()) }
     var agenda by remember { mutableStateOf<List<AgendaItem>>(emptyList()) }
     var loading by remember { mutableStateOf(Supa.loggedIn) }
+    val exec = rememberRunner { }
     LaunchedEffect(Unit) {
         if (Supa.loggedIn) {
             try { habits = Repo.habits(); agenda = Repo.agenda() } catch (e: Exception) { } finally { loading = false }
@@ -57,13 +59,20 @@ fun MorningBrief(onClose: () -> Unit) {
             }
         }
         if (habits.isNotEmpty()) Card2 {
-            Text("Habit hari ini", style = MaterialTheme.typography.titleMedium, color = Ink)
+            Text("Mulai harimu dengan habit", style = MaterialTheme.typography.titleMedium, color = Ink)
+            Text("Ketuk + untuk mencatat habit yang sudah kamu lakukan pagi ini.", style = MaterialTheme.typography.labelMedium, color = Muted)
             Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 habits.forEach { h ->
                     Column {
-                        Row {
-                            Text(h.name, Modifier.weight(1f), color = Ink)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("${h.icon} ${h.name}", Modifier.weight(1f), color = Ink)
                             Text("${h.today}/${h.target} ${h.unit}", style = MaterialTheme.typography.labelMedium, color = Muted)
+                            if (h.today < h.target) {
+                                Spacer(Modifier.width(8.dp))
+                                RoundButton("+", "Tambah ${h.name}", {
+                                    exec { Repo.setHabitCount(h.id, h.today + 1); habits = Repo.habits() }
+                                }, filled = true)
+                            }
                         }
                         Bar(h.today.toFloat() / h.target, if (h.today >= h.target) w.moss else w.sun, Modifier.padding(top = 5.dp), 5.dp)
                     }

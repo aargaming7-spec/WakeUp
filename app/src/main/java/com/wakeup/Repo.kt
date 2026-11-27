@@ -13,7 +13,9 @@ import java.util.UUID
 
 data class Profile(val id: String, val username: String, val fullName: String?)
 data class Habit(val id: String, val name: String, val icon: String, val target: Int, val unit: String,
-                 val reminder: String?, val today: Int, val streak: Int, val week: List<Boolean>)
+                 val reminder: String?, val today: Int, val streak: Int, val week: List<Boolean>,
+                 val created: LocalDate? = null,
+                 val reminderDays: List<Int> = emptyList())   // nomor Calendar (Min=1..Sab=7); kosong = setiap hari
 data class Reminder(val id: String, val title: String, val category: String, val notes: String?,
                     val startsAt: Instant, val remindBefore: Int, val done: Boolean)
 data class Friendship(val id: String, val other: Profile, val status: String, val incoming: Boolean)
@@ -22,11 +24,13 @@ data class Member(val profile: Profile, val role: String)
 data class SharedSchedule(val id: String, val groupId: String, val groupName: String, val title: String,
                           val description: String?, val startsAt: Instant, val endsAt: Instant?, val createdBy: String,
                           val myStatus: String, val going: Int, val invited: Int, val declined: Int)
-/** Statistik bangun, dihitung dari tabel alarm_logs (bukan penyimpanan lokal). */
 data class WakeStats(val streak: Int, val best: Int, val total: Int, val week: List<Boolean>)
-/** Satu baris di halaman Jadwal: reminder pribadi atau jadwal grup. */
 data class AgendaItem(val key: String, val kind: String, val refId: String, val title: String, val sub: String,
                       val start: Instant, val end: Instant, val status: String, val done: Boolean, val conflict: Boolean)
+data class GroupChallenge(val id: String, val groupId: String, val name: String, val icon: String, val target: Int,
+                          val unit: String, val createdBy: String)
+data class ChallengeLog(val challengeId: String, val userId: String, val date: LocalDate, val count: Int)
+data class NotifItem(val icon: String, val title: String, val body: String, val tab: Int)
 
 private fun JSONObject.str(k: String): String? = if (isNull(k)) null else getString(k)
 private fun JSONArray.objs(): List<JSONObject> = (0 until length()).map { getJSONObject(it) }
@@ -36,7 +40,6 @@ private fun uid(): String = Supa.userId ?: throw ApiException("Belum login")
 private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
 
 object Repo {
-    // ---------- profil ----------
     suspend fun myProfile(): Profile? =
         Supa.get("profiles?select=id,username,full_name&id=eq.${uid()}").objs().firstOrNull()?.profile()
 
@@ -44,8 +47,6 @@ object Repo {
         Supa.rest("PATCH", "profiles?id=eq.${uid()}", JSONObject().put("full_name", name).toString())
     }
 
-    // ---------- alarm (lokal tetap utama; ini cadangan di cloud) ----------
-    /** Upsert berdasarkan (user_id, local_id) lalu hapus yang sudah tidak ada. Tidak pernah mengosongkan cloud lebih dulu. */
     suspend fun pushAlarms(list: List<Alarm>) {
         val u = uid()
         if (list.isEmpty()) { Supa.rest("DELETE", "alarms?user_id=eq.$u"); return }
@@ -57,7 +58,7 @@ object Repo {
         Supa.rest("POST", "alarms?on_conflict=user_id,local_id", arr.toString(), "resolution=merge-duplicates")
         val keep = list.joinToString(",") { it.id.toString() }
         Supa.rest("DELETE", "alarms?user_id=eq.$u&local_id=not.in.($keep)")
-        Supa.rest("DELETE", "alarms?user_id=eq.$u&local_id=is.null")   // baris lama sebelum ada kolom local_id
+        Supa.rest("DELETE", "alarms?user_id=eq.$u&local_id=is.null")
     }
 
     suspend fun pullAlarms(): List<Alarm> =
@@ -68,7 +69,6 @@ object Repo {
                 o.getInt("level"), o.getBoolean("enabled"), (0 until d.length()).map { d.getInt(it) })
         }
 
-    /** Streak, streak terbaik, total hari bangun, dan centang minggu ini, semuanya dari alarm_logs. */
     suspend fun wakeStats(): WakeStats {
         val days = Supa.get("alarm_logs?user_id=eq.${uid()}&select=completed_at&order=completed_at.desc&limit=1000")
             .objs().map { ts(it.getString("completed_at")).local().toLocalDate() }.toSet()
@@ -87,10 +87,6 @@ object Repo {
         return WakeStats(streak, best, days.size, (0..6).map { mon.plusDays(it.toLong()) in days })
     }
 
-    /**
-     * Catat alarm yang selesai. Entri disimpan dulu di antrian lokal (SyncQueue) lalu dikirim;
-     * kalau offline, otomatis dikirim ulang nanti lewat flushPending(). id dibuat di HP supaya kirim ulang tidak jadi duplikat.
-     */
     fun logAlarmAsync(challengeId: Int, alarmLocalId: Int = -1) {
         if (!Supa.loggedIn) return
         SyncQueue.add(JSONObject()
@@ -102,7 +98,6 @@ object Repo {
         CoroutineScope(Dispatchers.IO).launch { runCatching { flushPending() } }
     }
 
-    /** Kirim semua entri antrian milik user yang sedang login. Aman dipanggil berulang (ignore-duplicates). */
     suspend fun flushPending() {
         if (!Supa.loggedIn) return
         val mine = SyncQueue.entriesFor(uid())
@@ -112,15 +107,14 @@ object Repo {
         SyncQueue.remove(mine.map { it.getString("id") }.toSet())
     }
 
-    // ---------- habit ----------
     suspend fun habits(): List<Habit> {
         val u = uid()
         val hs = Supa.get("habits?user_id=eq.$u&archived=eq.false&order=created_at").objs()
-        val since = LocalDate.now().minusDays(180)   // jendela streak habit
+        val since = LocalDate.now().minusDays(180)
         val logs = Supa.get("habit_logs?user_id=eq.$u&log_date=gte.$since&select=habit_id,log_date,count&order=log_date.desc").objs()
             .groupBy { it.getString("habit_id") }
         val today = LocalDate.now()
-        return hs.map { o ->
+        val result = hs.map { o ->
             val id = o.getString("id"); val target = o.getInt("target_count")
             val mine = logs[id].orEmpty()
             val done = mine.filter { it.getInt("count") >= target }.map { LocalDate.parse(it.getString("log_date")) }.toSet()
@@ -129,25 +123,50 @@ object Repo {
             var streak = 0
             while (d in done) { streak++; d = d.minusDays(1) }
             Habit(id, o.getString("name"), o.str("icon") ?: "✅", target, o.str("unit") ?: "", o.str("reminder_time"),
-                cnt, streak, (6 downTo 0).map { today.minusDays(it.toLong()) in done })
+                cnt, streak, (6 downTo 0).map { today.minusDays(it.toLong()) in done },
+                o.str("created_at")?.let { ts(it).local().toLocalDate() },
+                o.optJSONArray("reminder_days")?.let { a -> (0 until a.length()).map { a.getInt(it) } } ?: emptyList())
         }
+        HabitLocal.save(result)
+        return result
     }
 
-    suspend fun addHabit(name: String, icon: String, target: Int, unit: String, reminder: String?) {
+    suspend fun habitLogs(days: Int = 365): Map<String, Map<LocalDate, Int>> {
+        val since = LocalDate.now().minusDays(days.toLong())
+        return Supa.get("habit_logs?user_id=eq.${uid()}&log_date=gte.$since&select=habit_id,log_date,count&order=log_date.desc&limit=5000")
+            .objs().groupBy { it.getString("habit_id") }
+            .mapValues { (_, rows) -> rows.associate { LocalDate.parse(it.getString("log_date")) to it.getInt("count") } }
+    }
+
+    suspend fun addHabit(name: String, icon: String, target: Int, unit: String, reminder: String?, days: List<Int> = emptyList()) {
         val o = JSONObject().put("user_id", uid()).put("name", name).put("icon", icon).put("target_count", target).put("unit", unit)
         if (reminder != null) o.put("reminder_time", reminder)
+        if (days.isNotEmpty()) o.put("reminder_days", JSONArray(days))
         Supa.rest("POST", "habits", o.toString())
+    }
+
+    suspend fun updateHabit(id: String, name: String, icon: String, target: Int, unit: String, reminder: String?, days: List<Int>) {
+        val o = JSONObject().put("name", name).put("icon", icon).put("target_count", target).put("unit", unit)
+            .put("reminder_time", reminder ?: JSONObject.NULL).put("reminder_days", JSONArray(days))
+        try {
+            Supa.rest("PATCH", "habits?id=eq.$id", o.toString())
+        } catch (e: ApiException) {
+            if (e.message?.contains("reminder_days") == true) {
+                o.remove("reminder_days")
+                Supa.rest("PATCH", "habits?id=eq.$id", o.toString())
+            } else throw e
+        }
     }
 
     suspend fun setHabitCount(habitId: String, count: Int) {
         val row = JSONObject().put("habit_id", habitId).put("user_id", uid())
             .put("log_date", LocalDate.now().toString()).put("count", count)
         Supa.rest("POST", "habit_logs?on_conflict=habit_id,log_date", row.toString(), "resolution=merge-duplicates")
+        HabitLocal.setCount(habitId, count)
     }
 
     suspend fun deleteHabit(id: String) { Supa.rest("DELETE", "habits?id=eq.$id") }
 
-    // ---------- reminder ----------
     suspend fun reminders(): List<Reminder> =
         Supa.get("reminders?user_id=eq.${uid()}&order=starts_at").objs().map {
             Reminder(it.getString("id"), it.getString("title"), it.getString("category"), it.str("notes"),
@@ -166,7 +185,6 @@ object Repo {
     }
     suspend fun deleteReminder(id: String) { Supa.rest("DELETE", "reminders?id=eq.$id") }
 
-    // ---------- friends ----------
     suspend fun friendships(): List<Friendship> {
         val u = uid()
         val sel = "id,status,requester_id,addressee_id," +
@@ -184,7 +202,6 @@ object Repo {
 
     suspend fun sendRequest(toId: String) {
         val u = uid()
-        // pasangan yang pernah ditolak masih menempati unique index; hapus dulu supaya bisa dikirim ulang
         Supa.rest("DELETE", "friendships?status=eq.declined&or=(and(requester_id.eq.$u,addressee_id.eq.$toId),and(requester_id.eq.$toId,addressee_id.eq.$u))")
         Supa.rest("POST", "friendships", JSONObject().put("requester_id", uid()).put("addressee_id", toId).toString())
     }
@@ -193,7 +210,6 @@ object Repo {
     }
     suspend fun removeFriendship(id: String) { Supa.rest("DELETE", "friendships?id=eq.$id") }
 
-    // ---------- groups ----------
     suspend fun groups(): List<Group> =
         Supa.get("group_members?select=group:groups(id,name,description,owner_id)&user_id=eq.${uid()}").objs().map {
             val g = it.getJSONObject("group")
@@ -217,7 +233,6 @@ object Repo {
         Supa.rest("DELETE", "group_members?group_id=eq.$gid&user_id=eq.$userId")
     }
 
-    // ---------- shared schedule ----------
     suspend fun sharedSchedules(): List<SharedSchedule> {
         val u = uid()
         val sel = "id,group_id,title,description,starts_at,ends_at,created_by,group:groups(name),schedule_participants(user_id,status)"
@@ -246,7 +261,6 @@ object Repo {
             JSONObject().put("status", if (going) "going" else "declined").toString())
     }
 
-    // ---------- agenda gabungan + deteksi bentrok ----------
     suspend fun agenda(): List<AgendaItem> {
         val items = mutableListOf<AgendaItem>()
         reminders().forEach {
@@ -261,5 +275,56 @@ object Repo {
         return items.sortedBy { it.start }.map { a ->
             a.copy(conflict = a in active && active.any { b -> b.key != a.key && a.start < b.end && b.start < a.end })
         }
+    }
+
+    suspend fun challenges(groupId: String): List<GroupChallenge> =
+        Supa.get("group_challenges?group_id=eq.$groupId&order=created_at").objs().map {
+            GroupChallenge(it.getString("id"), it.getString("group_id"), it.getString("name"), it.str("icon") ?: "🔥",
+                it.getInt("target_count"), it.str("unit") ?: "", it.getString("created_by"))
+        }
+
+    suspend fun challengeLogs(ids: List<String>, days: Int = 60): List<ChallengeLog> {
+        if (ids.isEmpty()) return emptyList()
+        val since = LocalDate.now().minusDays(days.toLong())
+        return Supa.get("challenge_logs?challenge_id=in.(${ids.joinToString(",")})&log_date=gte.$since" +
+            "&select=challenge_id,user_id,log_date,count&limit=5000").objs().map {
+            ChallengeLog(it.getString("challenge_id"), it.getString("user_id"),
+                LocalDate.parse(it.getString("log_date")), it.getInt("count"))
+        }
+    }
+
+    suspend fun createChallenge(groupId: String, name: String, icon: String, target: Int, unit: String) {
+        Supa.rest("POST", "group_challenges", JSONObject().put("group_id", groupId).put("created_by", uid())
+            .put("name", name).put("icon", icon).put("target_count", target).put("unit", unit).toString())
+    }
+
+    suspend fun setChallengeCount(challengeId: String, count: Int) {
+        val row = JSONObject().put("challenge_id", challengeId).put("user_id", uid())
+            .put("log_date", LocalDate.now().toString()).put("count", count)
+        Supa.rest("POST", "challenge_logs?on_conflict=challenge_id,user_id,log_date", row.toString(), "resolution=merge-duplicates")
+    }
+
+    suspend fun deleteChallenge(id: String) { Supa.rest("DELETE", "group_challenges?id=eq.$id") }
+
+    suspend fun notificationItems(): List<NotifItem> {
+        val out = mutableListOf<NotifItem>()
+        val now = Instant.now()
+        val today = LocalDate.now()
+        friendships().filter { it.status == "pending" && it.incoming }.forEach {
+            out.add(NotifItem("👋", "Permintaan pertemanan",
+                "${it.other.fullName ?: it.other.username} (@${it.other.username}) ingin berteman denganmu.", 4))
+        }
+        val ag = agenda()
+        ag.filter { it.kind == "group" && it.status == "invited" && it.start.isAfter(now) }.forEach {
+            out.add(NotifItem("📅", "Undangan: ${it.title}", "${it.sub} · ${fmtDateTime(it.start)}. Belum kamu jawab.", 3))
+        }
+        val clash = ag.count { it.conflict && !it.done && it.status != "declined" }
+        if (clash > 0) out.add(NotifItem("⚠️", "Jadwal bertabrakan", "$clash jadwal saling bertumpuk. Cek tab Jadwal.", 3))
+        ag.filter { it.kind == "reminder" && !it.done && it.start.isAfter(now) && it.start.local().toLocalDate() == today }
+            .take(3).forEach { out.add(NotifItem("⏰", it.title, "Hari ini pukul ${fmtTime(it.start)}.", 3)) }
+        val open = habits().filter { it.today < it.target }
+        if (open.isNotEmpty()) out.add(NotifItem("🎯", "${open.size} habit belum tercapai hari ini",
+            open.take(3).joinToString(", ") { "${it.icon} ${it.name} (${it.today}/${it.target})" }, 2))
+        return out
     }
 }

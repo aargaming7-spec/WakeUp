@@ -24,7 +24,6 @@ fun SocialScreen() {
     }
 }
 
-// ======================= TEMAN =======================
 @Composable
 fun FriendsPane() {
     var friends by remember { mutableStateOf<List<Friendship>>(emptyList()) }
@@ -94,7 +93,6 @@ fun FriendsPane() {
     }
 }
 
-// ======================= GRUP =======================
 @Composable
 fun GroupsPane() {
     var groups by remember { mutableStateOf<List<Group>>(emptyList()) }
@@ -211,6 +209,8 @@ fun GroupDetail(group: Group, onBack: () -> Unit) {
             }
         }
         SunButton("Tambah jadwal bersama", { addingSchedule = true })
+
+        ChallengeSection(group, members)
 
         Spacer(Modifier.height(8.dp))
         if (isOwner) TextButton({ exec { Repo.deleteGroup(group.id); onBack() } }) {

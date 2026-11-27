@@ -18,6 +18,7 @@ fun SettingsScreen(onBack: () -> Unit, onLogout: () -> Unit, onOpenAuth: () -> U
     var profile by remember { mutableStateOf<Profile?>(null) }
     var fullName by remember { mutableStateOf("") }
     var forceVolume by remember { mutableStateOf(prefs.getBoolean("force_volume", true)) }
+    var weekly by remember { mutableStateOf(prefs.getBoolean("weekly_insight", true)) }
     var msg by remember { mutableStateOf<String?>(null) }
     val exec = rememberRunner { msg = it }
     LaunchedEffect(Unit) {
@@ -61,6 +62,18 @@ fun SettingsScreen(onBack: () -> Unit, onLogout: () -> Unit, onOpenAuth: () -> U
                 }
                 Spacer(Modifier.width(12.dp))
                 Switch(forceVolume, { forceVolume = it; prefs.edit().putBoolean("force_volume", it).apply() }, colors = wakeSwitchColors())
+            }
+        }
+
+        Card2 {
+            SectionLabel("Notifikasi")
+            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Ringkasan mingguan", style = MaterialTheme.typography.titleSmall, color = Ink)
+                    Text("Setiap Minggu pukul 19.00: progres habit minggu ini dibanding minggu lalu.", style = MaterialTheme.typography.labelMedium, color = Muted)
+                }
+                Spacer(Modifier.width(12.dp))
+                Switch(weekly, { weekly = it; prefs.edit().putBoolean("weekly_insight", it).apply(); WeeklyInsight.schedule(ctx) }, colors = wakeSwitchColors())
             }
         }
 

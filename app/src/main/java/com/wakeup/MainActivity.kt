@@ -79,6 +79,7 @@ fun Shell(onOpenAuth: () -> Unit, onLogout: () -> Unit) {
                 0 -> HomeScreen(onGo = { tab = it })
                 1 -> AlarmScreen()
                 5 -> SettingsScreen(onBack = { tab = 0 }, onLogout = onLogout, onOpenAuth = onOpenAuth)
+                6 -> NotificationCenterScreen(onBack = { tab = 0 }, onGo = { tab = it })
                 else -> if (!Supa.loggedIn) NeedLogin(onOpenAuth) else when (tab) {
                     2 -> HabitScreen()
                     3 -> ScheduleScreen()
@@ -89,7 +90,6 @@ fun Shell(onOpenAuth: () -> Unit, onLogout: () -> Unit) {
     }
 }
 
-// ======================= LOGIN / REGISTRASI =======================
 @Composable
 fun AuthScreen(onDone: () -> Unit) {
     var register by remember { mutableStateOf(false) }
@@ -103,7 +103,6 @@ fun AuthScreen(onDone: () -> Unit) {
     val w = MaterialTheme.wake
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        // Hero malam dengan matahari terbit di sudut
         Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(bottomStart = 36.dp, bottomEnd = 36.dp)).background(w.night)) {
             SunMark(Modifier.matchParentSize(), cx = 1f, cy = 1f, scale = .55f)
             Column(Modifier.padding(horizontal = 24.dp).padding(top = 64.dp, bottom = 36.dp)) {
@@ -149,7 +148,6 @@ fun AuthScreen(onDone: () -> Unit) {
     }
 }
 
-// ======================= BERANDA =======================
 @Composable
 fun HomeScreen(onGo: (Int) -> Unit) {
     val ctx = LocalContext.current
@@ -157,16 +155,19 @@ fun HomeScreen(onGo: (Int) -> Unit) {
     var habits by remember { mutableStateOf<List<Habit>>(emptyList()) }
     var agenda by remember { mutableStateOf<List<AgendaItem>>(emptyList()) }
     var stats by remember { mutableStateOf<WakeStats?>(null) }
+    var notifCount by remember { mutableIntStateOf(0) }
     var error by remember { mutableStateOf<String?>(null) }
     val exec = rememberRunner { error = it }
     LaunchedEffect(Unit) {
+        runCatching { WeeklyInsight.schedule(ctx) }
         if (Supa.loggedIn) exec {
-            runCatching { Repo.flushPending() } // kirim riwayat bangun yang tertunda saat offline
+            runCatching { Repo.flushPending() }
             name = Repo.myProfile()?.username
             habits = Repo.habits()
             agenda = Repo.agenda()
             stats = Repo.wakeStats()
-            runCatching { NotificationSync.sync(ctx) } // pasang ulang pengingat dari data cloud
+            runCatching { NotificationSync.sync(ctx) }
+            runCatching { notifCount = Repo.notificationItems().size }
         }
     }
     val w = MaterialTheme.wake
@@ -183,14 +184,25 @@ fun HomeScreen(onGo: (Int) -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
         ScreenHeader(name ?: "WakeUp", overline = greeting() + "  ·  " + fmtDate(Instant.now()), trailing = {
-            Box(Modifier.size(44.dp).clip(CircleShape).background(w.dawn).clickable { onGo(5) }
-                .semantics { contentDescription = "Pengaturan" }, contentAlignment = Alignment.Center) {
-                Text((name ?: "W").take(1).uppercase(), style = MaterialTheme.typography.titleMedium, color = w.sunText)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (Supa.loggedIn) Box(Modifier.size(44.dp)) {
+                    Box(Modifier.align(Alignment.Center).size(44.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant)
+                        .clickable { onGo(6) }.semantics { contentDescription = "Notifikasi" }, contentAlignment = Alignment.Center) {
+                        Text("🔔", fontSize = 18.sp)
+                    }
+                    if (notifCount > 0) Box(Modifier.align(Alignment.TopEnd).size(18.dp).clip(CircleShape).background(w.sun),
+                        contentAlignment = Alignment.Center) {
+                        Text(if (notifCount > 9) "9+" else "$notifCount", fontSize = 10.sp, color = w.onSun)
+                    }
+                }
+                Box(Modifier.size(44.dp).clip(CircleShape).background(w.dawn).clickable { onGo(5) }
+                    .semantics { contentDescription = "Pengaturan" }, contentAlignment = Alignment.Center) {
+                    Text((name ?: "W").take(1).uppercase(), style = MaterialTheme.typography.titleMedium, color = w.sunText)
+                }
             }
         })
         ErrorText(error)
 
-        // Hero: alarm berikutnya
         Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(w.night)) {
             SunMark(Modifier.matchParentSize(), cx = 1f, cy = 1f, scale = .5f)
             Column(Modifier.padding(24.dp)) {
@@ -213,7 +225,6 @@ fun HomeScreen(onGo: (Int) -> Unit) {
             }
         }
 
-        // Statistik: dua angka besar, dipisah garis tipis
         Card2 {
             Row(Modifier.height(IntrinsicSize.Min)) {
                 Column(Modifier.weight(1f)) {
@@ -280,7 +291,6 @@ fun HomeScreen(onGo: (Int) -> Unit) {
     }
 }
 
-/** Satu baris linimasa: jam, penanda warna, judul. */
 @Composable
 fun TimelineRow(time: String, title: String, sub: String?, accent: Color) {
     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(vertical = 6.dp)) {
@@ -293,7 +303,6 @@ fun TimelineRow(time: String, title: String, sub: String?, accent: Color) {
     }
 }
 
-// ======================= ALARM =======================
 val DAYS = listOf("Sen" to 2, "Sel" to 3, "Rab" to 4, "Kam" to 5, "Jum" to 6, "Sab" to 7, "Min" to 1)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -387,7 +396,6 @@ fun AlarmScreen() {
                 }
             }
         }
-        // Riwayat minggu ini
         Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             DAYS.forEachIndexed { i, (n, _) ->
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
